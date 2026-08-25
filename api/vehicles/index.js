@@ -1,0 +1,2 @@
+import {adminClient,json,requireUser,fail} from '../_supabase.js';
+export default async function handler(req,res){try{if(req.method!=='GET')return json(res,405,{error:'Method not allowed'});const {user,profile}=await requireUser(req);const db=adminClient();let q=db.from('assets').select('*').order('identifier');if(profile.company_id)q=q.eq('company_id',profile.company_id);else q=q.eq('owner_id',user.id);const {data,error}=await q;if(error)throw error;return json(res,200,{data:data||[]})}catch(e){return fail(res,e)}}

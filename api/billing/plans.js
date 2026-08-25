@@ -1,0 +1,2 @@
+import {json} from '../_supabase.js';import {prices,plans} from './_stripe.js';
+export default async function handler(req,res){if(req.method!=='GET')return json(res,405,{error:'Method not allowed'});return json(res,200,{plans:{FREE:{asset_limit:plans.FREE.limit,price:null},PERSONAL:{asset_limit:1,monthly:!!prices.PERSONAL_MONTHLY,yearly:!!prices.PERSONAL_YEARLY},PERSONAL_PLUS:{asset_limit:3,monthly:!!prices.PERSONAL_PLUS_MONTHLY,yearly:!!prices.PERSONAL_PLUS_YEARLY},PROFESSIONAL:{asset_limit:10,monthly:!!prices.PROFESSIONAL_MONTHLY,yearly:!!prices.PROFESSIONAL_YEARLY}}})}

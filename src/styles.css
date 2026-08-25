@@ -113,3 +113,21 @@
   }
 }
 
+
+.assetList button.selectedAsset{
+  background:#0d2937;
+  box-shadow:inset 2px 0 var(--cyan),0 0 22px rgba(67,217,255,.06);
+}
+
+.assetList button.selectedAsset .assetIcon{
+  border-color:rgba(67,217,255,.55);
+  box-shadow:0 0 18px rgba(67,217,255,.12);
+}
+
+.assetMarker{
+  transition:transform .2s ease,box-shadow .2s ease;
+}
+
+.assetMarker:hover{
+  transform:scale(1.12);
+}

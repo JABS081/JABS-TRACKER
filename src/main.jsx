@@ -114,9 +114,51 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
       window.L.control.zoom({position:'bottomright'}).addTo(map.current);
     }
     const m=markers.current;
-    assets.forEach(a=>{if(!Number.isFinite(Number(a.latitude))||!Number.isFinite(Number(a.longitude)))return;const key=a.id;let marker=m.get(key);const Icon=iconFor(a.asset_type);const html=`<div class="assetMarker ${String(a.status).toLowerCase()}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;if(!marker){marker=window.L.marker([a.latitude,a.longitude],{icon:window.L.divIcon({className:'',html,iconSize:[34,34],iconAnchor:[17,17]})}).addTo(map.current);marker.on('click',()=>onSelect(a));m.set(key,marker)}else marker.setLatLng([a.latitude,a.longitude]);});
+    assets.forEach(a=>{if(!Number.isFinite(Number(a.latitude))||!Number.isFinite(Number(a.longitude)))return;const key=a.id;let marker=m.get(key);const Icon=iconFor(a.asset_type);const html=`<div class="assetMarker ${String(a.status).toLowerCase()}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;if(!marker){marker=window.L.marker([a.latitude,a.longitude],{icon:window.L.divIcon({className:'',html,iconSize:[34,34],iconAnchor:[17,17]})}).addTo(map.current);
+        marker.bindTooltip(
+          `<b>${a.identifier || a.name || 'ASSET'}</b><br/>${a.asset_type || 'ASSET'} · ${a.status || 'UNKNOWN'}`,
+          {direction:'top',offset:[0,-18],opacity:.94}
+        );
+        marker.on('click',()=>onSelect(a));
+        m.set(key,marker)}else marker.setLatLng([a.latitude,a.longitude]);});
     [...m.keys()].filter(k=>!assets.some(a=>a.id===k)).forEach(k=>{m.get(k).remove();m.delete(k)});
-    if(selected && Number.isFinite(Number(selected.latitude)) && Number.isFinite(Number(selected.longitude))) map.current.flyTo([selected.latitude,selected.longitude],13,{duration:.7});
+    const positionedAssets = assets.filter(a =>
+      Number.isFinite(Number(a.latitude)) &&
+      Number.isFinite(Number(a.longitude))
+    );
+
+    if(selected &&
+       Number.isFinite(Number(selected.latitude)) &&
+       Number.isFinite(Number(selected.longitude))) {
+      map.current.flyTo(
+        [Number(selected.latitude), Number(selected.longitude)],
+        13,
+        {duration:.7}
+      );
+    } else if(positionedAssets.length > 1) {
+      const bounds = window.L.latLngBounds(
+        positionedAssets.map(a => [
+          Number(a.latitude),
+          Number(a.longitude)
+        ])
+      );
+
+      map.current.fitBounds(bounds, {
+        padding: [55,55],
+        maxZoom: 12,
+        animate: true
+      });
+    } else if(positionedAssets.length === 1) {
+      map.current.setView(
+        [
+          Number(positionedAssets[0].latitude),
+          Number(positionedAssets[0].longitude)
+        ],
+        11,
+        {animate:true}
+      );
+    }
+
     if(trailLayer.current) trailLayer.current.remove();
     if(trail.length>1) trailLayer.current=window.L.polyline(trail.map(p=>[p.latitude,p.longitude]),{color:'#43d9ff',weight:4,opacity:.75}).addTo(map.current);
     setTimeout(()=>map.current?.invalidateSize(),100);
@@ -129,8 +171,152 @@ function LiveMap({assets,selected,setSelected,trail}) { return <div className="m
 function AssetDrawer({asset,onClose,trail}){if(!asset)return null;const Icon=iconFor(asset.asset_type);return <aside className="assetDrawer"><div className="drawerHead"><div><span className="assetIcon"><Icon size={17}/></span><div><b>{asset.identifier||asset.name}</b><small>{asset.name||asset.asset_type}</small></div></div><button onClick={onClose}><X/></button></div><div className="drawerStatus"><Status>{asset.status}</Status><span>Updated {asset.last_updated?new Date(asset.last_updated).toLocaleString():'—'}</span></div><div className="metricGrid"><div><small>SPEED</small><b>{asset.speed??0} km/h</b></div><div><small>HEADING</small><b>{asset.heading??0}°</b></div><div><small>LATITUDE</small><b>{Number(asset.latitude).toFixed(5)}</b></div><div><small>LONGITUDE</small><b>{Number(asset.longitude).toFixed(5)}</b></div></div><div className="drawerSection"><b>TRIP CONTEXT</b><p>{asset.current_trip_id||'No active trip linked'}</p></div><div className="drawerSection"><b>RECENT TRAIL</b><p>{trail.length} location points loaded for the selected window.</p></div><button className="outline wide"><History size={15}/> Open movement history</button></aside>}
 
 function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh}) {
-  const moving=assets.filter(a=>['MOVING','IN_TRANSIT','TRANSIT'].includes(String(a.status).toUpperCase())).length, offline=assets.filter(a=>String(a.status).toUpperCase()==='OFFLINE').length;
-  return <><div className="pageHero"><div><span>OPERATIONAL VISIBILITY</span><h1>Command Center</h1><p>Real-time intelligence across every authorized truck, ship and phone.</p></div><button className="outline" onClick={refresh}><RefreshCw size={15}/> Refresh</button></div><div className="stats"><Stat icon={Truck} label="TRACKED ASSETS" value={assets.length} meta="Authorized assets"/><Stat icon={Navigation} label="MOVING" value={moving} meta="Current telemetry" tone="blue"/><Stat icon={AlertTriangle} label="OPEN ALERTS" value={alerts.length} meta="Needs attention" tone="red"/><Stat icon={Route} label="ACTIVE TRIPS" value={trips.filter(t=>!['COMPLETED','CANCELLED'].includes(t.status)).length} meta="Operational journeys" tone="green"/></div><div className="workspace"><LiveMap assets={assets} selected={selected} setSelected={setSelected} trail={trail}/><div className="sideStack"><div className="panel"><div className="panelHead"><div><b>ACTIVE ASSETS</b><small>Click any asset to focus the map</small></div></div><div className="assetList">{assets.slice(0,8).map(a=>{const I=iconFor(a.asset_type);return <button key={a.id} onClick={()=>setSelected(a)}><span className="assetIcon"><I size={16}/></span><span><b>{a.identifier}</b><small>{a.name||a.asset_type}</small></span><Status>{a.status}</Status></button>})}{!assets.length&&<Empty text="No authorized assets yet."/>}</div></div><div className="panel"><div className="panelHead"><div><b>EXCEPTIONS</b><small>Latest operational events</small></div></div>{alerts.slice(0,5).map(a=><div className="eventRow" key={a.id}><span className={`eventDot ${String(a.severity).toLowerCase()}`}/><div><b>{a.title||a.alert_type}</b><small>{a.message||'Operational exception'}</small></div><time>{new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div>)}{!alerts.length&&<Empty text="No unresolved alerts."/>}</div></div></div></>;
+  const moving=assets.filter(a=>['MOVING','IN_TRANSIT','TRANSIT'].includes(String(a.status).toUpperCase())).length;
+  const offline=assets.filter(a=>String(a.status).toUpperCase()==='OFFLINE').length;
+  const ships=assets.filter(a=>a.asset_type==='SHIP').length;
+  const trucks=assets.filter(a=>a.asset_type==='TRUCK').length;
+  const phones=assets.filter(a=>a.asset_type==='PHONE').length;
+
+  return <>
+    <div className="pageHero">
+      <div>
+        <span>OPERATIONAL VISIBILITY</span>
+        <h1>Command Center</h1>
+        <p>
+          Real-time intelligence across every authorized truck, ship and phone.
+          Select any asset to inspect telemetry and movement history.
+        </p>
+      </div>
+
+      <button className="outline" onClick={refresh}>
+        <RefreshCw size={15}/> Refresh
+      </button>
+    </div>
+
+    <div className="stats">
+      <Stat
+        icon={Truck}
+        label="TRACKED ASSETS"
+        value={assets.length}
+        meta={`${trucks} trucks · ${ships} ships · ${phones} phones`}
+      />
+
+      <Stat
+        icon={Navigation}
+        label="MOVING"
+        value={moving}
+        meta="Current telemetry"
+        tone="blue"
+      />
+
+      <Stat
+        icon={AlertTriangle}
+        label="OPEN ALERTS"
+        value={alerts.length}
+        meta={offline ? `${offline} asset(s) offline` : 'No offline assets'}
+        tone="red"
+      />
+
+      <Stat
+        icon={Route}
+        label="ACTIVE TRIPS"
+        value={trips.filter(t=>!['COMPLETED','CANCELLED'].includes(String(t.status||'').toUpperCase())).length}
+        meta="Operational journeys"
+        tone="green"
+      />
+    </div>
+
+    <div className="workspace">
+      <LiveMap
+        assets={assets}
+        selected={selected}
+        setSelected={setSelected}
+        trail={trail}
+      />
+
+      <div className="sideStack">
+
+        <div className="panel">
+          <div className="panelHead">
+            <div>
+              <b>ACTIVE ASSETS</b>
+              <small>Click any asset to focus the map</small>
+            </div>
+          </div>
+
+          <div className="assetList">
+            {assets.slice(0,12).map(a=>{
+              const I=iconFor(a.asset_type);
+
+              return (
+                <button
+                  key={a.id}
+                  onClick={()=>setSelected(a)}
+                  className={selected?.id===a.id?'selectedAsset':''}
+                >
+                  <span className="assetIcon">
+                    <I size={16}/>
+                  </span>
+
+                  <span>
+                    <b>{a.identifier || a.name || 'UNNAMED ASSET'}</b>
+                    <small>
+                      {a.name || a.asset_type}
+                      {a.speed!=null ? ` · ${a.speed} km/h` : ''}
+                    </small>
+                  </span>
+
+                  <Status>{a.status}</Status>
+                </button>
+              );
+            })}
+
+            {!assets.length &&
+              <Empty text="No authorized assets yet."/>
+            }
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panelHead">
+            <div>
+              <b>EXCEPTIONS</b>
+              <small>Latest operational events</small>
+            </div>
+          </div>
+
+          {alerts.slice(0,5).map(a=>
+            <div className="eventRow" key={a.id}>
+              <span className={`eventDot ${String(a.severity).toLowerCase()}`}/>
+              <div>
+                <b>{a.title||a.alert_type}</b>
+                <small>{a.message||'Operational exception'}</small>
+              </div>
+              <time>
+                {a.created_at
+                  ? new Date(a.created_at).toLocaleTimeString([],{
+                      hour:'2-digit',
+                      minute:'2-digit'
+                    })
+                  : '—'}
+              </time>
+            </div>
+          )}
+
+          {!alerts.length &&
+            <Empty text="No unresolved alerts."/>
+          }
+        </div>
+
+      </div>
+    </div>
+
+    <AssetDrawer
+      asset={selected}
+      onClose={()=>setSelected(null)}
+      trail={trail}
+    />
+  </>;
 }
 function Empty({text}){return <div className="empty"><Database size={20}/><span>{text}</span></div>}
 

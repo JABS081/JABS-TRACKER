@@ -33,11 +33,61 @@ function Cover({onEnter}) {
     {type:'PHONE', eyebrow:'CONNECTED PEOPLE & DEVICES', title:'LOCATE EVERY', accent:' PHONE', desc:'Authorized browser location tracking with battery, signal freshness, movement and history.'},
     {type:'COMMAND', eyebrow:'OPERATIONAL INTELLIGENCE', title:'CONTROL EVERY', accent:' MOVEMENT', desc:'One secure workspace for trucks, ships, phones, trips, alerts, geofences and analytics.'}
   ];
-  const [idx,setIdx] = useState(0), [muted,setMuted] = useState(true); const audio=useRef(null); const s=scenes[idx];
-  useEffect(()=>{const t=setInterval(()=>setIdx(v=>(v+1)%scenes.length),5200); return()=>clearInterval(t)},[]);
-  useEffect(()=>{if(!audio.current)return; if(muted) audio.current.pause(); else audio.current.play().catch(()=>{})},[muted]);
+  const [idx,setIdx] = useState(0), [muted,setMuted] = useState(true);
+  const audio=useRef(null);
+  const video=useRef(null);
+  const s=scenes[idx];
+  const videoSrc=`/videos/jabs-${s.type.toLowerCase()}.mp4`;
+  useEffect(()=>{
+    const t=setInterval(()=>setIdx(v=>(v+1)%scenes.length),5200);
+    return()=>clearInterval(t);
+  },[]);
+
+  useEffect(()=>{
+    const el=video.current;
+    if(!el)return;
+
+    el.pause();
+    el.currentTime=0;
+    el.muted=true;
+
+    const play=()=>{
+      el.muted=true;
+      el.play().catch(()=>{});
+    };
+
+    if(el.readyState>=2) play();
+    else el.addEventListener('loadeddata',play,{once:true});
+
+    return()=>el.removeEventListener('loadeddata',play);
+  },[videoSrc]);
+
+  useEffect(()=>{
+    if(!audio.current)return;
+    if(muted) audio.current.pause();
+    else audio.current.play().catch(()=>{});
+  },[muted]);
   const Icon=iconFor(s.type);
   return <main className="cover">
+
+    <div className="cinematicVideoLayer" aria-hidden="true">
+      <video
+        ref={video}
+        key={videoSrc}
+        className="cinematicVideo"
+        src={videoSrc}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        onLoadedData={(e)=>{
+          e.currentTarget.muted=true;
+          e.currentTarget.play().catch(()=>{});
+        }}
+      />
+      <div className="cinematicVideoGrade"/>
+    </div>
     <div className={`coverScene ${s.type.toLowerCase()}`} aria-hidden="true"><div className="sceneMesh"/><div className="sceneOrb o1"/><div className="sceneOrb o2"/><div className="sceneRoute"/><div className="sceneAsset"><Icon size={86}/></div><div className="sceneHorizon"/></div>
     <div className="coverShade"/><div className="coverVignette"/>
     <audio ref={audio} loop preload="auto" src="/sounds/intro-ambient.wav"/>

@@ -5,10 +5,30 @@ const empty = (error) => ({ data: [], error });
 export async function loadAssets() {
   if (!supabase) return empty(new Error('Supabase is not configured.'));
 
-  return supabase
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+
+  if (sessionError) return empty(sessionError);
+
+  const userId = sessionData?.session?.user?.id;
+
+  if (!userId) {
+    return empty(
+      new Error('No authenticated Supabase session. Please sign in again.')
+    );
+  }
+
+  const { data, error } = await supabase
     .from('assets')
     .select('*')
     .order('identifier');
+
+  if (error) return empty(error);
+
+  return {
+    data: data || [],
+    error: null
+  };
 }
 
 export async function loadAlerts() {

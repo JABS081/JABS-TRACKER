@@ -8,6 +8,7 @@ const fmt=v=>v==null?'—':Number(v).toLocaleString(undefined,{maximumFractionDi
 
 function Metric({icon:Icon,label,value,meta}){return <div className="assetMetric"><div className="assetMetricIcon"><Icon size={17}/></div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></div>}
 function EmptyAsset({icon:Icon,title,text}){return <div className="assetEmpty"><Icon size={34}/><h3>{title}</h3><p>{text}</p></div>}
+function Status({children}){return <span className={`status ${tone(children)}`}>{children || 'UNKNOWN'}</span>}
 function MiniMap({asset,trail=[],mode='road'}){
  const ref=useRef(null),map=useRef(null),marker=useRef(null),line=useRef(null);
  useEffect(()=>{if(!window.L||!ref.current||!asset)return;const lat=n(asset.latitude),lng=n(asset.longitude);if(lat==null||lng==null)return;

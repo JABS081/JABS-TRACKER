@@ -131,3 +131,517 @@
 .assetMarker:hover{
   transform:scale(1.12);
 }
+
+/* JABS TRACKER — dedicated asset dashboard layer */
+.assetDashboard{display:grid;gap:16px}
+.assetHero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:4px 0 8px}
+.assetHero>div:first-child>span{font-size:9px;letter-spacing:.2em;color:var(--cyan);font-weight:900}
+.assetHero h1{margin:7px 0;font-size:38px;letter-spacing:-.05em}
+.assetHero p{margin:0;color:#7895a2;max-width:760px;line-height:1.55}
+.assetHeroActions{display:flex;align-items:center;gap:10px}
+.assetHeroActions select{background:#071923;border:1px solid #1a3948;color:#dcecf2;padding:11px 14px;border-radius:9px;min-width:180px}
+.assetPill{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;border:1px solid #234452;background:#0b202a;font-size:8px;letter-spacing:.1em;white-space:nowrap}
+.assetPill i,.assetLive i{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px currentColor}
+.assetPill.good{color:#73e5b4;border-color:#1f5c4b}.assetPill.good i{background:var(--green)}
+.assetPill.warn{color:#ffd08a;border-color:#66502b}.assetPill.warn i{background:var(--warn)}
+.assetPill.danger{color:#ff9aa7;border-color:#65303b}.assetPill.danger i{background:var(--danger)}
+.assetPill.info{color:#86dcff;border-color:#1f5066}
+.assetKpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.assetMetric{background:linear-gradient(145deg,#081722,#06121a);border:1px solid #143342;border-radius:13px;padding:16px;display:flex;gap:12px;min-height:92px;box-shadow:0 16px 40px rgba(0,0,0,.18)}
+.assetMetricIcon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#0a2733;color:var(--cyan);flex:0 0 auto}
+.assetMetric span,.assetMetric small{display:block;color:#698591;font-size:8px;letter-spacing:.1em}
+.assetMetric strong{display:block;font-size:18px;margin:5px 0 3px;word-break:break-word}
+.assetMainGrid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.65fr);gap:14px}
+.assetMapCard,.assetCard{background:#07131d;border:1px solid #123140;border-radius:14px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.2)}
+.assetSectionHead{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 16px;border-bottom:1px solid #102b38}
+.assetSectionHead b{display:block;font-size:10px;letter-spacing:.12em}.assetSectionHead small{display:block;color:#607d89;font-size:8px;margin-top:4px}
+.assetLive{display:flex;align-items:center;gap:7px;color:#79e9b7;font-size:8px;letter-spacing:.1em}
+.assetMiniMap{height:520px;background:#06121a;position:relative}.assetDashMarker{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#0b2937;border:2px solid var(--cyan);color:#d9faff;box-shadow:0 0 28px rgba(67,217,255,.45)}.assetDashMarker.good{border-color:var(--green)}.assetDashMarker.warn{border-color:var(--warn)}.assetDashMarker.danger{border-color:var(--danger)}
+.assetMapFooter{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;color:#78939e;font-size:8px}.assetMapFooter span{display:flex;gap:6px;align-items:center}
+.assetSideColumn{display:grid;gap:14px;align-content:start}.telemetryList{padding:5px 15px 12px}.telemetryList>div{display:flex;justify-content:space-between;gap:15px;padding:10px 0;border-bottom:1px solid #102a36}.telemetryList>div:last-child{border-bottom:0}.telemetryList span{color:#63808b;font-size:8px}.telemetryList b{font-size:9px;text-align:right;max-width:65%;overflow:hidden;text-overflow:ellipsis}
+.driverBlock{display:flex;gap:10px;align-items:center;padding:15px}.driverAvatar{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#0a2835;color:var(--cyan)}.driverBlock b,.driverBlock small{display:block}.driverBlock b{font-size:10px}.driverBlock small{font-size:8px;color:#65818c;margin-top:3px}.progressTrack{height:5px;background:#102b37;margin:2px 15px 8px;border-radius:9px;overflow:hidden}.progressTrack span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:9px}.progressMeta{display:flex;justify-content:space-between;padding:0 15px 14px;color:#66828e;font-size:8px}
+.assetBottomGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.behaviorGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px}.behaviorGrid>div{background:#091a24;border:1px solid #14313e;border-radius:9px;padding:11px}.behaviorGrid span,.behaviorGrid b{display:block}.behaviorGrid span{font-size:7px;color:#65818c}.behaviorGrid b{font-size:10px;margin-top:5px}.coordinateGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px}.coordinateGrid>div{background:#091a24;border:1px solid #14313e;border-radius:9px;padding:11px}.coordinateGrid span,.coordinateGrid b{display:block}.coordinateGrid span{font-size:7px;color:#65818c;letter-spacing:.1em}.coordinateGrid b{font-size:10px;margin-top:5px}.voyageProgress{padding:18px 16px 8px}.voyageProgress strong{display:block;font-size:22px;margin-bottom:9px}.voyageProgress span{display:block;height:7px;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:9px}.voyageStops{display:flex;justify-content:space-between;padding:8px 16px 16px;color:#65818c;font-size:7px;letter-spacing:.1em}.voyageStops b{color:#c8dbe1;font-size:9px}.healthBars{padding:10px 16px 16px}.healthBars>div{display:grid;grid-template-columns:70px 1fr;align-items:center;gap:10px;margin:10px 0;font-size:8px;color:#7b97a2}.healthBars i{height:6px;background:#102b37;border-radius:9px;overflow:hidden}.healthBars i b{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:9px}
+.privacyNotice{display:flex;gap:10px;padding:16px;color:#7895a2;font-size:9px;line-height:1.5}.privacyNotice svg{color:var(--green);flex:0 0 auto}.phoneControls{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;padding:15px;align-items:end}.phoneControls label{display:block;color:#76919c;font-size:8px;letter-spacing:.1em}.phoneControls input{display:block;width:100%;margin-top:6px;background:#06111a;border:1px solid #173543;color:#fff;padding:11px;border-radius:8px}.phoneControls .primary{height:40px;margin:0}
+.assetEmpty{min-height:430px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#07131d;border:1px dashed #1a3b4a;border-radius:14px;color:#64818d}.assetEmpty svg{color:var(--cyan);margin-bottom:8px}.assetEmpty h3{color:#d8e8ed;margin:4px}.assetEmpty p{font-size:10px;max-width:380px}
+.assetDashboard.sea .assetMetricIcon,.assetDashboard.sea .assetLive{color:#46d7ff}.assetDashboard.phone .assetMetricIcon,.assetDashboard.phone .assetLive{color:#b093ff}
+@media(max-width:1100px){.assetKpis{grid-template-columns:repeat(2,1fr)}.assetMainGrid{grid-template-columns:1fr}.assetBottomGrid{grid-template-columns:1fr}}
+@media(max-width:700px){.assetHero{flex-direction:column;align-items:flex-start}.assetHero h1{font-size:30px}.assetHeroActions{width:100%}.assetHeroActions select{flex:1;min-width:0}.assetKpis{grid-template-columns:1fr}.assetMiniMap{height:390px}.behaviorGrid{grid-template-columns:1fr 1fr}.phoneControls{grid-template-columns:1fr}.assetMapFooter{flex-direction:column}.assetBottomGrid{grid-template-columns:1fr}}
+
+/* =========================================================
+   JABS TRACKER — TRUCK COMMAND / VISUAL PASS 2
+   ========================================================= */
+
+.truckCommandBanner{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(240px,1.2fr) minmax(330px,1fr) auto;
+  align-items:center;
+  gap:18px;
+  padding:18px 20px;
+  margin-bottom:16px;
+  border:1px solid rgba(67,217,255,.14);
+  border-radius:14px;
+  background:
+    radial-gradient(circle at 15% 0%,rgba(67,217,255,.12),transparent 38%),
+    linear-gradient(135deg,rgba(8,30,42,.96),rgba(3,13,20,.96));
+  box-shadow:0 14px 40px rgba(0,0,0,.2);
+  overflow:hidden;
+}
+
+.truckCommandBanner:after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height:1px;
+  background:linear-gradient(90deg,transparent,#43d9ff,transparent);
+  opacity:.45;
+}
+
+.truckIdentity{
+  display:flex;
+  align-items:center;
+  gap:13px;
+  min-width:0;
+}
+
+.truckIdentityIcon{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  border-radius:12px;
+  color:#43d9ff;
+  background:rgba(67,217,255,.08);
+  border:1px solid rgba(67,217,255,.18);
+  box-shadow:inset 0 0 24px rgba(67,217,255,.06);
+}
+
+.truckIdentity span,
+.truckBannerMetrics span,
+.truckCommandActions>div:first-child span{
+  display:block;
+  font-size:8px;
+  letter-spacing:.16em;
+  color:#66808d;
+  text-transform:uppercase;
+}
+
+.truckIdentity strong{
+  display:block;
+  margin-top:3px;
+  font-size:18px;
+  letter-spacing:.02em;
+  color:#eefaff;
+}
+
+.truckIdentity small{
+  display:block;
+  margin-top:3px;
+  color:#7e98a4;
+  font-size:10px;
+}
+
+.truckBannerMetrics{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+}
+
+.truckBannerMetrics>div{
+  padding:9px 11px;
+  border-left:1px solid rgba(255,255,255,.07);
+}
+
+.truckBannerMetrics b{
+  display:block;
+  margin-top:5px;
+  color:#b8cbd3;
+  font-size:11px;
+}
+
+.truckBannerMetrics b.stateLive{
+  color:#43d9ff;
+}
+
+.truckLivePulse{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:8px 10px;
+  border-radius:999px;
+  background:rgba(45,220,156,.06);
+  border:1px solid rgba(45,220,156,.15);
+  color:#63e8bb;
+  font-size:8px;
+  letter-spacing:.12em;
+  white-space:nowrap;
+}
+
+.truckLivePulse i,
+.assetLive i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#35e5ad;
+  box-shadow:0 0 0 4px rgba(53,229,173,.08),0 0 12px rgba(53,229,173,.7);
+  animation:jabsTruckPulse 1.8s infinite;
+}
+
+@keyframes jabsTruckPulse{
+  0%,100%{transform:scale(.85);opacity:.7}
+  50%{transform:scale(1.15);opacity:1}
+}
+
+.truckOperationsGrid{
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(280px,.72fr);
+  gap:14px;
+  align-items:start;
+}
+
+.truckHeroMap{
+  min-width:0;
+}
+
+.truckMapWrap{
+  position:relative;
+  overflow:hidden;
+}
+
+.truckMapWrap .leafletMap,
+.truckMapWrap>div{
+  min-height:460px;
+}
+
+.truckMapOverlay{
+  position:absolute;
+  z-index:500;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  padding:8px 10px;
+  border:1px solid rgba(67,217,255,.18);
+  border-radius:9px;
+  background:rgba(2,11,17,.84);
+  backdrop-filter:blur(12px);
+  box-shadow:0 8px 25px rgba(0,0,0,.25);
+}
+
+.truckMapOverlay span{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  color:#72909d;
+  font-size:8px;
+  letter-spacing:.1em;
+}
+
+.truckMapOverlay b{
+  color:#dff7ff;
+  font-size:11px;
+}
+
+.truckMapOverlay.topLeft{
+  top:12px;
+  left:12px;
+}
+
+.truckMapOverlay.bottomRight{
+  right:12px;
+  bottom:12px;
+}
+
+.truckIntelligenceColumn{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  min-width:0;
+}
+
+.connectionRows{
+  display:flex;
+  flex-direction:column;
+  gap:13px;
+}
+
+.connectionRows>div{
+  display:grid;
+  grid-template-columns:70px 1fr;
+  align-items:center;
+  column-gap:8px;
+}
+
+.connectionRows span{
+  color:#75909b;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.connectionRows b{
+  justify-self:end;
+  color:#9eb1b9;
+  font-size:9px;
+}
+
+.connectionRows b.healthy{
+  color:#45dfae;
+}
+
+.connectionRows i{
+  grid-column:1 / -1;
+  height:4px;
+  margin-top:5px;
+  overflow:hidden;
+  border-radius:10px;
+  background:#0b202b;
+}
+
+.connectionRows i em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#167e9b,#43d9ff);
+  box-shadow:0 0 10px rgba(67,217,255,.35);
+}
+
+.tripIdentity{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px;
+  border-radius:10px;
+  background:rgba(67,217,255,.045);
+  border:1px solid rgba(67,217,255,.08);
+}
+
+.tripIcon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  color:#43d9ff;
+  border-radius:8px;
+  background:rgba(67,217,255,.08);
+}
+
+.tripIdentity span{
+  display:block;
+  color:#69838e;
+  font-size:7px;
+  letter-spacing:.13em;
+}
+
+.tripIdentity strong{
+  display:block;
+  margin-top:3px;
+  color:#d9f5fc;
+  font-size:10px;
+}
+
+.tripStats{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+
+.tripStats>div{
+  padding:8px;
+  border:1px solid rgba(255,255,255,.055);
+  border-radius:8px;
+}
+
+.tripStats span{
+  display:block;
+  color:#66808c;
+  font-size:7px;
+  letter-spacing:.1em;
+}
+
+.tripStats b{
+  display:block;
+  margin-top:4px;
+  color:#bcd0d8;
+  font-size:9px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.progressTrack.enhanced{
+  margin-top:11px;
+  height:5px;
+  background:#071821;
+}
+
+.progressTrack.enhanced span{
+  box-shadow:0 0 10px rgba(67,217,255,.45);
+}
+
+.driverBlock.enhanced{
+  min-height:50px;
+}
+
+.driverBlock.enhanced .status{
+  margin-left:auto;
+}
+
+.driverMeta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-top:10px;
+  padding-top:9px;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+
+.driverMeta span{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  color:#647d88;
+  font-size:8px;
+}
+
+.driverMeta b{
+  color:#45dfae;
+  font-size:8px;
+}
+
+.enhancedBehavior>div{
+  position:relative;
+  overflow:hidden;
+}
+
+.enhancedBehavior>div:after{
+  content:"";
+  position:absolute;
+  left:0;
+  bottom:0;
+  width:35%;
+  height:2px;
+  background:#43d9ff;
+  opacity:.3;
+}
+
+.enhancedBehavior b.attention{
+  color:#ff7d82;
+}
+
+.enhancedCoordinates>div{
+  background:rgba(67,217,255,.025);
+}
+
+.truckCommandActions{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+  margin-top:14px;
+  padding:14px 16px;
+  border:1px solid rgba(67,217,255,.1);
+  border-radius:12px;
+  background:rgba(5,18,26,.8);
+}
+
+.truckCommandActions>div:first-child b{
+  display:block;
+  margin-top:4px;
+  color:#c9e4ec;
+  font-size:11px;
+}
+
+.truckActionButtons{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:7px;
+}
+
+.truckActionButtons button{
+  white-space:nowrap;
+}
+
+@media(max-width:1000px){
+  .truckCommandBanner{
+    grid-template-columns:1fr;
+  }
+
+  .truckBannerMetrics{
+    grid-template-columns:repeat(3,1fr);
+  }
+
+  .truckLivePulse{
+    justify-self:start;
+  }
+
+  .truckOperationsGrid{
+    grid-template-columns:1fr;
+  }
+
+  .truckMapWrap .leafletMap,
+  .truckMapWrap>div{
+    min-height:400px;
+  }
+
+  .truckBottomGrid{
+    grid-template-columns:1fr 1fr !important;
+  }
+
+  .truckBottomGrid .assetCard:last-child{
+    grid-column:1 / -1;
+  }
+}
+
+@media(max-width:650px){
+  .truckCommandBanner{
+    padding:13px;
+  }
+
+  .truckBannerMetrics{
+    grid-template-columns:1fr;
+  }
+
+  .truckBannerMetrics>div{
+    border-left:0;
+    border-top:1px solid rgba(255,255,255,.055);
+    padding:8px 0;
+  }
+
+  .truckMapWrap .leafletMap,
+  .truckMapWrap>div{
+    min-height:330px;
+  }
+
+  .truckMapOverlay{
+    padding:6px 8px;
+  }
+
+  .truckMapOverlay.bottomRight{
+    display:none;
+  }
+
+  .truckBottomGrid{
+    grid-template-columns:1fr !important;
+  }
+
+  .truckBottomGrid .assetCard:last-child{
+    grid-column:auto;
+  }
+
+  .truckCommandActions{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .truckActionButtons{
+    justify-content:stretch;
+  }
+
+  .truckActionButtons button{
+    flex:1 1 45%;
+  }
+}

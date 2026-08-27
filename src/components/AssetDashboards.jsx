@@ -29,8 +29,18 @@ function MovementHistory({trail=[]}){
  const [playing,setPlaying]=useState(false);
  const [cursor,setCursor]=useState(Math.max(0,trail.length-1));
 
- const points=trail.filter(p=>p&&p.latitude!=null&&p.longitude!=null);
- const visible=range==='7D'?points:range==='48H'?points:points;
+ const points=trail
+  .filter(p=>p&&p.latitude!=null&&p.longitude!=null)
+  .map(p=>({...p,__time:new Date(p.recorded_at||p.created_at||p.timestamp||p.last_updated||0).getTime()}))
+  .filter(p=>Number.isFinite(p.__time)&&p.__time>0)
+  .sort((a,b)=>a.__time-b.__time);
+
+ const now=Date.now();
+ const windowMs=range==='24H'?24*60*60*1000:
+                range==='48H'?48*60*60*1000:
+                7*24*60*60*1000;
+
+ const visible=points.filter(p=>p.__time>=now-windowMs);
 
  useEffect(()=>{
    if(!playing||visible.length<2)return;
@@ -59,7 +69,7 @@ function MovementHistory({trail=[]}){
    return sum+2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
  },0);
 
- const stamp=current?.recorded_at||current?.created_at||current?.timestamp;
+ const stamp=current?.recorded_at||current?.created_at||current?.timestamp||current?.last_updated;
 
  return <section className="assetCard movementHistory">
    <div className="assetSectionHead">
@@ -112,8 +122,8 @@ function MovementHistory({trail=[]}){
        onChange={e=>{setPlaying(false);setCursor(Number(e.target.value))}}
      />
      <div className="historyEndpoints">
-       <span>{visible[0]?.recorded_at?new Date(visible[0].recorded_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'START'}</span>
-       <span>{visible[visible.length-1]?.recorded_at?new Date(visible[visible.length-1].recorded_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'END'}</span>
+       <span>{visible[0]?.__time?new Date(visible[0].__time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'START'}</span>
+       <span>{visible[visible.length-1]?.__time?new Date(visible[visible.length-1].__time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'END'}</span>
      </div>
    </div>
 

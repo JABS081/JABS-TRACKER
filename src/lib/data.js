@@ -116,6 +116,15 @@ export function subscribeToAssets(onChange) {
       },
       onChange
     )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'locations'
+      },
+      onChange
+    )
     .subscribe();
 
   return () => supabase.removeChannel(channel);

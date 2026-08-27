@@ -23,6 +23,121 @@ function MiniMap({asset,trail=[],mode='road'}){
 function Shell({eyebrow,title,subtitle,asset,assets,onSelect,accent='cyan',children}){
  return <div className={`assetDashboard ${accent}`}><div className="assetHero"><div><span>{eyebrow}</span><h1>{title}</h1><p>{subtitle}</p></div><div className="assetHeroActions"><div className={`assetPill ${tone(asset?.status)}`}><i/>{asset?.status||'NO ASSET'}</div><select value={asset?.id||''} onChange={e=>onSelect?.(assets.find(x=>x.id===e.target.value)||null)}><option value="">Select asset</option>{assets.map(a=><option key={a.id} value={a.id}>{a.identifier||a.name}</option>)}</select></div></div>{children}</div>
 }
+
+function MovementHistory({trail=[]}){
+ const [range,setRange]=useState('24H');
+ const [playing,setPlaying]=useState(false);
+ const [cursor,setCursor]=useState(Math.max(0,trail.length-1));
+
+ const points=trail.filter(p=>p&&p.latitude!=null&&p.longitude!=null);
+ const visible=range==='7D'?points:range==='48H'?points:points;
+
+ useEffect(()=>{
+   if(!playing||visible.length<2)return;
+   const id=setInterval(()=>{
+     setCursor(i=>{
+       if(i>=visible.length-1){setPlaying(false);return i}
+       return i+1;
+     });
+   },700);
+   return()=>clearInterval(id);
+ },[playing,visible.length]);
+
+ const current=visible[cursor]||visible[visible.length-1];
+ const speeds=visible.map(p=>Number(p.speed)).filter(Number.isFinite);
+ const maxSpeed=speeds.length?Math.max(...speeds):0;
+ const avgSpeed=speeds.length?speeds.reduce((a,b)=>a+b,0)/speeds.length:0;
+
+ const distance=visible.slice(1).reduce((sum,p,i)=>{
+   const a=visible[i],R=6371;
+   const dLat=(Number(p.latitude)-Number(a.latitude))*Math.PI/180;
+   const dLng=(Number(p.longitude)-Number(a.longitude))*Math.PI/180;
+   const x=Math.sin(dLat/2)**2+
+     Math.cos(Number(a.latitude)*Math.PI/180)*
+     Math.cos(Number(p.latitude)*Math.PI/180)*
+     Math.sin(dLng/2)**2;
+   return sum+2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+ },0);
+
+ const stamp=current?.recorded_at||current?.created_at||current?.timestamp;
+
+ return <section className="assetCard movementHistory">
+   <div className="assetSectionHead">
+     <div>
+       <b>MOVEMENT HISTORY</b>
+       <small>Recorded GPS movement and playback</small>
+     </div>
+     <History size={18}/>
+   </div>
+
+   <div className="historyToolbar">
+     <div className="historyRanges">
+       {['24H','48H','7D'].map(x=>
+         <button key={x}
+           className={range===x?'active':''}
+           onClick={()=>{setRange(x);setCursor(Math.max(0,visible.length-1));setPlaying(false)}}>
+           {x}
+         </button>
+       )}
+     </div>
+
+     <div className="historyActions">
+       <button className="outline" disabled={!visible.length}
+         onClick={()=>{setCursor(0);setPlaying(true)}}>
+         ▶ PLAY
+       </button>
+       <button className="outline" onClick={()=>setPlaying(false)}>PAUSE</button>
+       <button className="outline" onClick={()=>{setPlaying(false);setCursor(Math.max(0,visible.length-1))}}>RESET</button>
+     </div>
+   </div>
+
+   <div className="historyStats">
+     <div><span>POINTS</span><b>{visible.length}</b></div>
+     <div><span>DISTANCE</span><b>{distance.toFixed(2)} km</b></div>
+     <div><span>MAX SPEED</span><b>{maxSpeed.toFixed(1)} km/h</b></div>
+     <div><span>AVG SPEED</span><b>{avgSpeed.toFixed(1)} km/h</b></div>
+   </div>
+
+   <div className="historyTimeline">
+     <div className="historyTimelineTop">
+       <span>{current?'PLAYBACK POSITION':'NO TELEMETRY'}</span>
+       <b>{stamp?new Date(stamp).toLocaleString():'—'}</b>
+     </div>
+     <input
+       type="range"
+       min="0"
+       max={Math.max(0,visible.length-1)}
+       value={Math.min(cursor,Math.max(0,visible.length-1))}
+       disabled={!visible.length}
+       onChange={e=>{setPlaying(false);setCursor(Number(e.target.value))}}
+     />
+     <div className="historyEndpoints">
+       <span>{visible[0]?.recorded_at?new Date(visible[0].recorded_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'START'}</span>
+       <span>{visible[visible.length-1]?.recorded_at?new Date(visible[visible.length-1].recorded_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'END'}</span>
+     </div>
+   </div>
+
+   <div className="historyCurrent">
+     <div>
+       <span>CURRENT POSITION</span>
+       <b>{current?`${fmt(current.latitude)}, ${fmt(current.longitude)}`:'No GPS position'}</b>
+     </div>
+     <div>
+       <span>SPEED</span>
+       <b>{current?.speed!=null?`${fmt(current.speed)} km/h`:'—'}</b>
+     </div>
+     <div>
+       <span>HEADING</span>
+       <b>{current?.heading!=null?`${fmt(current.heading)}°`:'—'}</b>
+     </div>
+     <div>
+       <span>STATUS</span>
+       <b>{playing?'PLAYING':'PAUSED'}</b>
+     </div>
+   </div>
+ </section>
+}
+
 function Telemetry({asset}){return <section className="assetCard"><div className="assetSectionHead"><div><b>LIVE TELEMETRY</b><small>Connected operational data</small></div><Radio size={18}/></div><div className="telemetryList">{[['Identifier',asset.identifier],['Name',asset.name],['Device',asset.device_id||'Not linked'],['Latitude',fmt(asset.latitude)],['Longitude',fmt(asset.longitude)],['Updated',asset.last_updated?new Date(asset.last_updated).toLocaleString():'—']].map(([a,b])=><div key={a}><span>{a}</span><b>{b||'—'}</b></div>)}</div></section>}
 
 export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
@@ -280,7 +395,7 @@ export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
 
    </div>
 
-   <section className="truckCommandActions">
+   <MovementHistory trail={trail}/>\n\n<section className="truckCommandActions">
      <div>
        <span>OPERATIONAL CONTROLS</span>
        <b>{a.identifier||a.name||'Vehicle'} command actions</b>

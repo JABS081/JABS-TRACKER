@@ -340,7 +340,27 @@ function ProfileMenu({profile,onLogout}){return <div className="profileMenu"><di
 function App(){const [session,setSession]=useState(null),[showCover,setShowCover]=useState(true),[profile,setProfile]=useState(null),[section,setSection]=useState('COMMAND CENTER'),[assets,setAssets]=useState([]),[alerts,setAlerts]=useState([]),[trips,setTrips]=useState([]),[selected,setSelected]=useState(null),[trail,setTrail]=useState([]),[mobile,setMobile]=useState(false),[profileOpen,setProfileOpen]=useState(false),[toast,setToast]=useState('');
  const refresh=async()=>{const [a,al,t]=await Promise.all([loadAssets(),loadAlerts(),loadTrips()]);if(a.error)setToast(a.error.message);setAssets(a.data||[]);setAlerts((al.data||[]).filter(x=>!x.acknowledged));setTrips(t.data||[])};
  useEffect(()=>{getSession().then(({data})=>setSession(data.session)); if(supabase){const {data}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s));return()=>data.subscription.unsubscribe()}},[]);
- useEffect(()=>{if(!session)return; refresh(); const u=subscribeToAssets(()=>refresh());const v=subscribeToAlerts(()=>refresh());return()=>{u();v()}},[session]);
+ useEffect(()=>{
+  if(!session)return;
+
+  refresh();
+
+  const u=subscribeToAssets(async()=>{
+    await refresh();
+
+    if(selected){
+      const r=await loadLocations(selected,24);
+      if(!r.error)setTrail(r.data||[]);
+    }
+  });
+
+  const v=subscribeToAlerts(()=>refresh());
+
+  return()=>{
+    u();
+    v();
+  };
+},[session,selected]);
  useEffect(()=>{if(!session||!supabase)return;supabase.from('profiles').select('full_name,role,phone').eq('id',session.user.id).maybeSingle().then(({data})=>setProfile(data||{}))},[session]);
  useEffect(()=>{if(selected)loadLocations(selected,24).then(({data})=>setTrail(data||[]))},[selected]);
  if(!session)return showCover?<Cover onEnter={()=>setShowCover(false)}/>:<Login onAuthenticated={s=>{setSession(s);setShowCover(false)}}/>;

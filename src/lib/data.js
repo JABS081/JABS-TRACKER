@@ -41,6 +41,16 @@ export async function loadAlerts() {
     .limit(100);
 }
 
+export async function loadGeofences() {
+  if (!supabase) return empty(new Error('Supabase is not configured.'));
+
+  return supabase
+    .from('geofences')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200);
+}
+
 export async function loadTrips() {
   if (!supabase) return empty(new Error('Supabase is not configured.'));
 

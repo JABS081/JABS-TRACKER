@@ -1,0 +1,267 @@
+
+.geofenceHeroActions{
+  display:flex;
+  gap:9px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.geofenceWorkspace{
+  display:grid;
+  grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr);
+  gap:14px;
+  margin-bottom:14px;
+}
+
+.geofenceMapCard{
+  min-height:560px;
+}
+
+.geofenceMap{
+  height:510px;
+  width:100%;
+  background:#061018;
+}
+
+.geofenceListCard{
+  min-height:560px;
+}
+
+.geofenceList{
+  max-height:470px;
+  overflow:auto;
+}
+
+.geofenceRow{
+  width:100%;
+  display:grid;
+  grid-template-columns:10px minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+  padding:13px 15px;
+  background:transparent;
+  border-bottom:1px solid #102a37;
+  text-align:left;
+}
+
+.geofenceRow:hover,
+.geofenceRow.selected{
+  background:#0a202c;
+}
+
+.geofenceRow>b,
+.geofenceRow span{
+  min-width:0;
+}
+
+.geofenceRow span:nth-child(2){
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.geofenceRow b{
+  font-size:10px;
+  color:#e9f4f8;
+}
+
+.geofenceRow small{
+  color:#66818e;
+  font-size:8px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.zoneDot{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:var(--cyan);
+  box-shadow:0 0 12px rgba(67,217,255,.6);
+}
+
+.zoneOn,
+.zoneOff{
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+
+.zoneOn{
+  color:var(--green);
+}
+
+.zoneOff{
+  color:#748894;
+}
+
+.geofenceDetail{
+  border-top:1px solid #15303d;
+  margin-top:5px;
+  padding:15px;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.geofenceDetail>div:first-child{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.geofenceDetail span{
+  color:var(--cyan);
+  font-size:8px;
+  letter-spacing:.14em;
+  font-weight:900;
+}
+
+.geofenceDetail b{
+  font-size:13px;
+}
+
+.geofenceDetail small{
+  color:#6f8a96;
+  font-size:9px;
+}
+
+.geofenceDetailActions{
+  display:flex;
+  gap:7px;
+}
+
+.dangerOutline{
+  color:#ff9daa!important;
+  border-color:#512733!important;
+}
+
+.geofenceForm{
+  padding:16px;
+  margin-bottom:14px;
+}
+
+.geofenceFormGrid{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:12px;
+}
+
+.geofenceForm label{
+  display:block;
+  color:#8ba4b1;
+  font-size:9px;
+  letter-spacing:.12em;
+  font-weight:800;
+}
+
+.geofenceForm input,
+.geofenceForm select{
+  width:100%;
+  margin-top:7px;
+  background:#06111a;
+  border:1px solid var(--line);
+  color:#fff;
+  padding:12px;
+  border-radius:9px;
+  outline:none;
+}
+
+.geofenceForm input:focus,
+.geofenceForm select:focus{
+  border-color:rgba(67,217,255,.6);
+}
+
+.geofenceEvents{
+  margin-top:14px;
+}
+
+.geofenceEventTable{
+  max-height:320px;
+  overflow:auto;
+}
+
+.geofenceEventRow{
+  display:grid;
+  grid-template-columns:10px minmax(0,1fr) auto;
+  align-items:center;
+  gap:11px;
+  padding:12px 16px;
+  border-bottom:1px solid #102a37;
+}
+
+.geofenceEventRow>div{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.geofenceEventRow b{
+  font-size:9px;
+  letter-spacing:.08em;
+}
+
+.geofenceEventRow small,
+.geofenceEventRow time{
+  color:#68828f;
+  font-size:8px;
+}
+
+.geofenceEventRow time{
+  text-align:right;
+}
+
+.geoAssetMarker{
+  width:30px;
+  height:30px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#071923;
+  border:1px solid rgba(67,217,255,.7);
+  color:#8deaff;
+  box-shadow:0 0 18px rgba(67,217,255,.3);
+  font-size:14px;
+}
+
+.geoAssetMarker.offline{
+  opacity:.5;
+  filter:grayscale(.8);
+}
+
+@media(max-width:1050px){
+  .geofenceWorkspace{
+    grid-template-columns:1fr;
+  }
+
+  .geofenceFormGrid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-width:620px){
+  .geofenceFormGrid{
+    grid-template-columns:1fr;
+  }
+
+  .geofenceMapCard,
+  .geofenceListCard{
+    min-height:0;
+  }
+
+  .geofenceMap{
+    height:390px;
+  }
+
+  .geofenceEventRow{
+    grid-template-columns:10px 1fr;
+  }
+
+  .geofenceEventRow time{
+    grid-column:2;
+    text-align:left;
+  }
+}

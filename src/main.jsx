@@ -9,7 +9,7 @@ import {
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { getSession, register, signIn, signOut } from './auth/session';
 import { supabase } from './lib/supabase';
-import { loadAlerts, loadAssets, loadLocations, loadTrips, subscribeToAlerts, subscribeToAssets } from './lib/data';
+import {loadAlerts, loadAssets, loadLocations, loadTrips, subscribeToAlerts, subscribeToAssets, loadGeofences} from './lib/data';
 import { config } from './lib/config';
 import { TruckDashboard, ShipDashboard, PhoneDashboard } from './components/AssetDashboards';
 import './styles.css';
@@ -321,6 +321,396 @@ function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh})
 }
 function Empty({text}){return <div className="empty"><Database size={20}/><span>{text}</span></div>}
 
+
+function GeofenceControlCenter({geofences=[],assets=[],refresh}) {
+ const [name,setName]=useState('');
+ const [type,setType]=useState('CUSTOMER');
+ const [latitude,setLatitude]=useState('');
+ const [longitude,setLongitude]=useState('');
+ const [radius,setRadius]=useState('250');
+ const [active,setActive]=useState(true);
+ const [selectedAssets,setSelectedAssets]=useState([]);
+ const [companyId,setCompanyId]=useState('');
+ const [saving,setSaving]=useState(false);
+ const [message,setMessage]=useState('');
+
+ const loadCompany=async()=>{
+   if(!supabase)return;
+   const {data:{user}}=await supabase.auth.getUser();
+   if(!user)return;
+
+   const {data,error}=await supabase
+     .from('company_members')
+     .select('company_id')
+     .eq('user_id',user.id)
+     .eq('active',true)
+     .limit(1)
+     .maybeSingle();
+
+   if(error){
+     setMessage(error.message);
+     return;
+   }
+
+   setCompanyId(data?.company_id||'');
+ };
+
+ useEffect(()=>{
+   loadCompany();
+ },[]);
+
+ const toggleAsset=id=>{
+   setSelectedAssets(list=>
+     list.includes(id)
+       ? list.filter(x=>x!==id)
+       : [...list,id]
+   );
+ };
+
+ const resetForm=()=>{
+   setName('');
+   setType('CUSTOMER');
+   setLatitude('');
+   setLongitude('');
+   setRadius('250');
+   setActive(true);
+   setSelectedAssets([]);
+ };
+
+ const createGeofence=async e=>{
+   e.preventDefault();
+   setMessage('');
+
+   const lat=Number(latitude);
+   const lng=Number(longitude);
+   const radiusM=Number(radius);
+
+   if(!companyId){
+     setMessage('No active organization is attached to this account.');
+     return;
+   }
+
+   if(!name.trim()){
+     setMessage('Enter a geofence name.');
+     return;
+   }
+
+   if(!Number.isFinite(lat)||lat<-90||lat>90){
+     setMessage('Enter a valid latitude between -90 and 90.');
+     return;
+   }
+
+   if(!Number.isFinite(lng)||lng<-180||lng>180){
+     setMessage('Enter a valid longitude between -180 and 180.');
+     return;
+   }
+
+   if(!Number.isFinite(radiusM)||radiusM<20){
+     setMessage('Geofence radius must be at least 20 metres.');
+     return;
+   }
+
+   setSaving(true);
+
+   try{
+     const {data,error}=await supabase
+       .from('geofences')
+       .insert({
+         company_id:companyId,
+         name:name.trim(),
+         type,
+         latitude:lat,
+         longitude:lng,
+         radius_m:radiusM,
+         active
+       })
+       .select('*')
+       .single();
+
+     if(error)throw error;
+
+     if(selectedAssets.length){
+       const rows=selectedAssets.map(asset_id=>({
+         geofence_id:data.id,
+         asset_id,
+         active:true
+       }));
+
+       const {error:assignmentError}=await supabase
+         .from('geofence_assets')
+         .insert(rows);
+
+       if(assignmentError)throw assignmentError;
+     }
+
+     setMessage('Geofence created and asset assignments saved.');
+     resetForm();
+     await refresh();
+   }catch(err){
+     setMessage(err.message||'Unable to create geofence.');
+   }finally{
+     setSaving(false);
+   }
+ };
+
+ const deleteGeofence=async id=>{
+   if(!window.confirm('Delete this geofence and its asset assignments?'))return;
+
+   setMessage('');
+
+   const {error}=await supabase
+     .from('geofences')
+     .delete()
+     .eq('id',id);
+
+   if(error){
+     setMessage(error.message);
+     return;
+   }
+
+   setMessage('Geofence deleted.');
+   await refresh();
+ };
+
+ const toggleGeofence=async(g)=>{
+   const {error}=await supabase
+     .from('geofences')
+     .update({active:!g.active})
+     .eq('id',g.id);
+
+   if(error){
+     setMessage(error.message);
+     return;
+   }
+
+   await refresh();
+ };
+
+ return <div className="page">
+
+   <div className="pageHero">
+     <div>
+       <span>SAFETY & LOCATION INTELLIGENCE</span>
+       <h1>Geofence Control Center</h1>
+       <p>
+         Create safe zones, operational zones and restricted areas,
+         then attach authorized trucks, phones or workforce assets.
+       </p>
+     </div>
+
+     <div className="heroIcon">
+       <MapPin size={22}/>
+     </div>
+   </div>
+
+   <div className="geofenceControlGrid">
+
+     <form className="formPanel" onSubmit={createGeofence}>
+       <div className="panelHead">
+         <div>
+           <b>CREATE GEOFENCE</b>
+           <small>Organization-controlled location boundary</small>
+         </div>
+         <MapPin size={18}/>
+       </div>
+
+       <label>
+         GEOFENCE NAME
+         <input
+           value={name}
+           onChange={e=>setName(e.target.value)}
+           placeholder="Home / School / Mining Site / Customer"
+         />
+       </label>
+
+       <label>
+         TYPE
+         <select value={type} onChange={e=>setType(e.target.value)}>
+           <option value="HOME">HOME / SAFE ZONE</option>
+           <option value="SCHOOL">SCHOOL</option>
+           <option value="WORK">WORK / DEPARTMENT</option>
+           <option value="SITE">MINING / OPERATIONAL SITE</option>
+           <option value="CUSTOMER">CUSTOMER</option>
+           <option value="RESTRICTED">RESTRICTED AREA</option>
+           <option value="CUSTOM">CUSTOM</option>
+         </select>
+       </label>
+
+       <div className="formTwo">
+         <label>
+           LATITUDE
+           <input
+             type="number"
+             step="any"
+             value={latitude}
+             onChange={e=>setLatitude(e.target.value)}
+             placeholder="6.5244"
+           />
+         </label>
+
+         <label>
+           LONGITUDE
+           <input
+             type="number"
+             step="any"
+             value={longitude}
+             onChange={e=>setLongitude(e.target.value)}
+             placeholder="3.3792"
+           />
+         </label>
+       </div>
+
+       <label>
+         RADIUS — METRES
+         <input
+           type="number"
+           min="20"
+           value={radius}
+           onChange={e=>setRadius(e.target.value)}
+         />
+       </label>
+
+       <label className="checkRow">
+         <input
+           type="checkbox"
+           checked={active}
+           onChange={e=>setActive(e.target.checked)}
+         />
+         <span>
+           <b>ACTIVE GEOFENCE</b>
+           <small>Generate location-boundary events when enabled.</small>
+         </span>
+       </label>
+
+       <div className="assetAssignmentBox">
+         <div className="panelHead">
+           <div>
+             <b>ASSIGN ASSETS</b>
+             <small>Choose which authorized assets use this zone.</small>
+           </div>
+         </div>
+
+         {!assets.length &&
+           <div className="infoBox">No authorized assets available.</div>
+         }
+
+         {assets.map(asset=>
+           <label className="assetCheck" key={asset.id}>
+             <input
+               type="checkbox"
+               checked={selectedAssets.includes(asset.id)}
+               onChange={()=>toggleAsset(asset.id)}
+             />
+             <span>
+               <b>{asset.identifier||asset.name||'Unnamed asset'}</b>
+               <small>{asset.asset_type||'ASSET'} · {asset.status||'UNKNOWN'}</small>
+             </span>
+           </label>
+         )}
+       </div>
+
+       {message&&
+         <div className="infoBox">{message}</div>
+       }
+
+       <div className="formActions">
+         <button className="primary" disabled={saving}>
+           {saving?'CREATING…':'CREATE GEOFENCE'}
+         </button>
+
+         <button
+           type="button"
+           className="outline"
+           onClick={resetForm}
+           disabled={saving}
+         >
+           RESET
+         </button>
+       </div>
+
+     </form>
+
+     <section className="panel">
+
+       <div className="panelHead">
+         <div>
+           <b>ACTIVE LOCATION ZONES</b>
+           <small>
+             {geofences.length} organization geofence{geofences.length===1?'':'s'}
+           </small>
+         </div>
+         <MapPin size={18}/>
+       </div>
+
+       <div className="geofenceList">
+
+         {!geofences.length&&
+           <Empty
+             text="No geofences have been created for this organization."
+           />
+         }
+
+         {geofences.map(g=>
+           <div className="geofenceItem" key={g.id}>
+
+             <div className="geofenceItemTop">
+               <div>
+                 <b>{g.name||'Unnamed geofence'}</b>
+                 <small>
+                   {(g.type||'CUSTOM').replaceAll('_',' ')}
+                   {' · '}
+                   {Number(g.radius_m||0).toLocaleString()} m
+                 </small>
+               </div>
+
+               <span className={g.active?'statusPill live':'statusPill'}>
+                 {g.active?'ACTIVE':'PAUSED'}
+               </span>
+             </div>
+
+             <div className="geofenceCoordinates">
+               <span>
+                 LAT {Number(g.latitude).toFixed(5)}
+               </span>
+               <span>
+                 LNG {Number(g.longitude).toFixed(5)}
+               </span>
+             </div>
+
+             <div className="geofenceItemActions">
+               <button
+                 className="outline"
+                 onClick={()=>toggleGeofence(g)}
+               >
+                 {g.active?'PAUSE':'ACTIVATE'}
+               </button>
+
+               <button
+                 className="dangerBtn"
+                 onClick={()=>deleteGeofence(g.id)}
+               >
+                 DELETE
+               </button>
+             </div>
+
+           </div>
+         )}
+
+       </div>
+
+     </section>
+
+   </div>
+
+   <div className="infoBox">
+     <b>SAFETY ENGINE:</b> these zones are stored in Supabase and are
+     organization-scoped. The next layer will turn asset movement into
+     ENTER, EXIT, DWELL and safety alerts.
+   </div>
+
+ </div>
+}
+
 function TablePage({title,icon:Icon,rows,columns}){return <div className="page"><div className="pageHero"><div><span>LIVE MODULE</span><h1>{title}</h1><p>Records are loaded from the connected operational data layer. No demo records are inserted by the interface.</p></div><div className="heroIcon"><Icon size={22}/></div></div><div className="tablePanel"><div className="tableWrap"><table><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={r.id||i}>{columns.map(c=><td key={c}>{String(r[c.toLowerCase().replaceAll(' ','_')] ?? r[c] ?? '—')}</td>)}</tr>)}</tbody></table>{!rows.length&&<Empty text="No records are available for this account."/>}</div></div></div>}
 
 function Analytics({assets,trips}){const series=useMemo(()=>{const by={};trips.forEach(t=>{const d=new Date(t.created_at||Date.now()).toLocaleDateString(undefined,{weekday:'short'});by[d]=(by[d]||0)+Number(t.actual_distance_km||t.planned_distance_km||0)});return Object.entries(by).map(([d,km])=>({d,km}))},[trips]);return <div className="page"><div className="pageHero"><div><span>PERFORMANCE INTELLIGENCE</span><h1>Analytics</h1><p>Operational metrics calculated from connected trip and asset records.</p></div></div><div className="stats"><Stat icon={Navigation} label="DISTANCE" value={`${series.reduce((a,b)=>a+b.km,0).toFixed(0)} km`} meta="Loaded trip records"/><Stat icon={Gauge} label="ASSET UTILIZATION" value={assets.length?`${Math.round(assets.filter(a=>a.status!=='OFFLINE').length/assets.length*100)}%`:'—'} meta="Online asset ratio" tone="green"/></div><div className="chartPanel"><div className="panelHead"><div><b>TRIP DISTANCE TREND</b><small>Derived from stored trip distances</small></div></div>{series.length?<ResponsiveContainer width="100%" height={330}><AreaChart data={series}><CartesianGrid strokeDasharray="3 3" stroke="#1b3344"/><XAxis dataKey="d" stroke="#7d95a5"/><YAxis stroke="#7d95a5"/><Tooltip contentStyle={{background:'#07131d',border:'1px solid #214256'}}/><Area type="monotone" dataKey="km" stroke="#43d9ff" fill="#43d9ff" fillOpacity={.12}/></AreaChart></ResponsiveContainer>:<Empty text="Not enough connected trip history for a trend yet."/>}</div></div>}
@@ -337,8 +727,8 @@ function Billing(){
 }
 function ProfileMenu({profile,onLogout}){return <div className="profileMenu"><div className="profileTop"><CircleUserRound size={20}/><div><b>{profile?.full_name||'Authenticated User'}</b><small>{profile?.role||'USER'}</small></div></div><button onClick={onLogout}><LogOut size={15}/> Sign out securely</button></div>}
 
-function App(){const [session,setSession]=useState(null),[showCover,setShowCover]=useState(true),[profile,setProfile]=useState(null),[section,setSection]=useState('COMMAND CENTER'),[assets,setAssets]=useState([]),[alerts,setAlerts]=useState([]),[trips,setTrips]=useState([]),[selected,setSelected]=useState(null),[trail,setTrail]=useState([]),[mobile,setMobile]=useState(false),[profileOpen,setProfileOpen]=useState(false),[toast,setToast]=useState('');
- const refresh=async()=>{const [a,al,t]=await Promise.all([loadAssets(),loadAlerts(),loadTrips()]);if(a.error)setToast(a.error.message);setAssets(a.data||[]);setAlerts((al.data||[]).filter(x=>!x.acknowledged));setTrips(t.data||[])};
+function App(){const [session,setSession]=useState(null),[showCover,setShowCover]=useState(true),[profile,setProfile]=useState(null),[section,setSection]=useState('COMMAND CENTER'),[assets,setAssets]=useState([]),[alerts,setAlerts]=useState([]),[geofences,setGeofences]=useState([]),[trips,setTrips]=useState([]),[selected,setSelected]=useState(null),[trail,setTrail]=useState([]),[mobile,setMobile]=useState(false),[profileOpen,setProfileOpen]=useState(false),[toast,setToast]=useState('');
+ const refresh=async()=>{const [a,al,t,g]=await Promise.all([loadAssets(),loadAlerts(),loadTrips(),loadGeofences()]);if(a.error)setToast(a.error.message);setAssets(a.data||[]);setAlerts((al.data||[]).filter(x=>!x.acknowledged));setTrips(t.data||[]);setGeofences(g.data||[])};
  useEffect(()=>{getSession().then(({data})=>setSession(data.session)); if(supabase){const {data}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s));return()=>data.subscription.unsubscribe()}},[]);
  useEffect(()=>{
   if(!session)return;
@@ -365,7 +755,7 @@ function App(){const [session,setSession]=useState(null),[showCover,setShowCover
  useEffect(()=>{if(selected)loadLocations(selected,24).then(({data})=>setTrail(data||[]))},[selected]);
  if(!session)return showCover?<Cover onEnter={()=>setShowCover(false)}/>:<Login onAuthenticated={s=>{setSession(s);setShowCover(false)}}/>;
  const go=n=>{setSection(n);setMobile(false)};
- const content= section==='COMMAND CENTER'?<CommandCenter assets={assets} alerts={alerts} trips={trips} selected={selected} setSelected={setSelected} trail={trail} refresh={refresh}/> : section==='PHONE TRACKING'?<PhoneDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ANALYTICS'?<Analytics assets={assets} trips={trips}/>:section==='BILLING'?<Billing/>:section==='FLEET'?<TruckDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='SHIP TRACKING'?<ShipDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ALERTS'?<TablePage title="Alerts" icon={AlertTriangle} rows={alerts} columns={['TITLE','ALERT_TYPE','SEVERITY','MESSAGE','CREATED_AT']}/>:section==='TRIPS'?<TablePage title="Trips" icon={Route} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ETA','CREATED_AT']}/>:section==='REPORTS'?<TablePage title="Reports" icon={Database} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ACTUAL_DISTANCE_KM']}/>:section==='DEVICES'?<TablePage title="Devices" icon={Wifi} rows={assets.filter(a=>a.device_id)} columns={['IDENTIFIER','DEVICE_ID','ASSET_TYPE','STATUS','LAST_UPDATED']}/>:section==='GEOFENCES'?<TablePage title="Geofences" icon={MapPin} rows={[]} columns={['NAME','TYPE','RADIUS_M','ACTIVE']}/>:section==='SHIPMENTS'?<TablePage title="Shipments" icon={Package} rows={[]} columns={['SHIPMENT_ID','STATUS','ORIGIN','DESTINATION','ETA']}/>:<div className="page"><div className="pageHero"><div><span>ADMINISTRATION</span><h1>{section}</h1><p>Access-controlled module. Connect the corresponding backend records before enabling mutations.</p></div></div><Empty text="No administrative records are exposed to this role."/></div>;
+ const content= section==='COMMAND CENTER'?<CommandCenter assets={assets} alerts={alerts} trips={trips} selected={selected} setSelected={setSelected} trail={trail} refresh={refresh}/> : section==='PHONE TRACKING'?<PhoneDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ANALYTICS'?<Analytics assets={assets} trips={trips}/>:section==='BILLING'?<Billing/>:section==='FLEET'?<TruckDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='SHIP TRACKING'?<ShipDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ALERTS'?<TablePage title="Alerts" icon={AlertTriangle} rows={alerts} columns={['TITLE','ALERT_TYPE','SEVERITY','MESSAGE','CREATED_AT']}/>:section==='TRIPS'?<TablePage title="Trips" icon={Route} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ETA','CREATED_AT']}/>:section==='REPORTS'?<TablePage title="Reports" icon={Database} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ACTUAL_DISTANCE_KM']}/>:section==='DEVICES'?<TablePage title="Devices" icon={Wifi} rows={assets.filter(a=>a.device_id)} columns={['IDENTIFIER','DEVICE_ID','ASSET_TYPE','STATUS','LAST_UPDATED']}/>:section==='GEOFENCES'?<GeofenceControlCenter geofences={geofences} assets={assets} refresh={refresh}/>:section==='SHIPMENTS'?<TablePage title="Shipments" icon={Package} rows={[]} columns={['SHIPMENT_ID','STATUS','ORIGIN','DESTINATION','ETA']}/>:<div className="page"><div className="pageHero"><div><span>ADMINISTRATION</span><h1>{section}</h1><p>Access-controlled module. Connect the corresponding backend records before enabling mutations.</p></div></div><Empty text="No administrative records are exposed to this role."/></div>;
  return <div className="app"><aside className={`sidebar ${mobile?'open':''}`}><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="live"><i className="pulse"/> LIVE <small>{config.mapTileUrl?'MAP READY':'MAP CONFIG REQUIRED'}</small></div><nav>{nav.map(([n,I])=><button key={n} className={section===n?'active':''} onClick={()=>go(n)}><I size={17}/><span>{n}</span></button>)}</nav><div className="sideFoot"><ShieldCheck size={16}/><span>SECURE OPERATIONS<br/><b>ROLE CONTROLLED</b></span></div></aside>{mobile&&<button className="mobileBackdrop" onClick={()=>setMobile(false)}/>}<main className="dashboardMain"><header className="topbar"><button className="mobileMenu" onClick={()=>setMobile(v=>!v)}><Menu/></button><div className="crumb">JABS TRACKER <ChevronRight size={14}/><b>{section}</b></div><div className="headerRight"><div className="clock"><Clock3 size={14}/>{new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><button className="iconBtn"><Bell size={18}/>{alerts.length>0&&<i/>}</button><button className="user" onClick={()=>setProfileOpen(v=>!v)}><span>{(profile?.full_name||session.user.email||'U').slice(0,2).toUpperCase()}</span><div><b>{profile?.full_name||'ACCOUNT'}</b><small>{profile?.role||'USER'}</small></div></button>{profileOpen&&<ProfileMenu profile={profile} onLogout={async()=>{await signOut();setSession(null);setProfile(null);setProfileOpen(false);setShowCover(true)}}/>}</div></header><div className="content">{content}</div></main><Toast message={toast} onClose={()=>setToast('')}/></div>;
 }
 

@@ -671,7 +671,7 @@ export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
 
    </div>
 
-   <MovementHistory trail={trail}/>\n\n<section className="truckCommandActions">
+   <MovementHistory trail={trail} asset={a}/>\n\n<section className="truckCommandActions">
      <div>
        <span>OPERATIONAL CONTROLS</span>
        <b>{a.identifier||a.name||'Vehicle'} command actions</b>

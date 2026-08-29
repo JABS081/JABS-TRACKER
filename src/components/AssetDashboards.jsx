@@ -9,146 +9,412 @@ const fmt=v=>v==null?'—':Number(v).toLocaleString(undefined,{maximumFractionDi
 function Metric({icon:Icon,label,value,meta}){return <div className="assetMetric"><div className="assetMetricIcon"><Icon size={17}/></div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></div>}
 function EmptyAsset({icon:Icon,title,text}){return <div className="assetEmpty"><Icon size={34}/><h3>{title}</h3><p>{text}</p></div>}
 function Status({children}){return <span className={`status ${tone(children)}`}>{children || 'UNKNOWN'}</span>}
-function MiniMap({asset,trail=[],mode='road'}){
- const ref=useRef(null),map=useRef(null),marker=useRef(null),line=useRef(null);
- useEffect(()=>{if(!window.L||!ref.current||!asset)return;const lat=n(asset.latitude),lng=n(asset.longitude);if(lat==null||lng==null)return;
-  if(!map.current){map.current=window.L.map(ref.current,{zoomControl:false,attributionControl:true}).setView([lat,lng],12);if(config.mapTileUrl)window.L.tileLayer(config.mapTileUrl,{attribution:config.mapAttribution,maxZoom:19}).addTo(map.current);window.L.control.zoom({position:'bottomright'}).addTo(map.current)}
-  const html=`<div class="assetDashMarker ${tone(asset.status)}"><span>${mode==='sea'?'⚓':mode==='phone'?'⌁':'▴'}</span></div>`;
-  if(!marker.current)marker.current=window.L.marker([lat,lng],{icon:window.L.divIcon({className:'',html,iconSize:[38,38],iconAnchor:[19,19]})}).addTo(map.current);else marker.current.setLatLng([lat,lng]);
-  if(line.current)line.current.remove();if(trail.length>1)line.current=window.L.polyline(trail.map(p=>[Number(p.latitude),Number(p.longitude)]),{color:mode==='sea'?'#46d7ff':mode==='phone'?'#9f7cff':'#35e09a',weight:4,opacity:.8}).addTo(map.current);
-  map.current.flyTo([lat,lng],Math.max(map.current.getZoom(),11),{duration:.45});setTimeout(()=>map.current?.invalidateSize(),80);
- },[asset,trail,mode]);
- return <div className="assetMiniMap" ref={ref}/>;
+function MiniMap({asset,trail=[],mode='road',playbackIndex=null,playing=false,playbackSpeed=1}){
+ const ref=useRef(null),map=useRef(null),marker=useRef(null),line=useRef(null),playedLine=useRef(null);
+ const [ready,setReady]=useState(false);
+
+ const points=trail
+  .filter(p=>p&&p.latitude!=null&&p.longitude!=null)
+  .map(p=>({
+    ...p,
+    lat:Number(p.latitude),
+    lng:Number(p.longitude),
+    time:new Date(p.recorded_at||p.created_at||p.timestamp||p.last_updated||0).getTime()
+  }))
+  .filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng))
+  .sort((a,b)=>a.time-b.time);
+
+ const activeIndex=playbackIndex==null
+  ? Math.max(0,points.length-1)
+  : Math.min(Math.max(0,playbackIndex),Math.max(0,points.length-1));
+
+ const current=points[activeIndex];
+ const displayed=current||{
+  latitude:asset?.latitude,
+  longitude:asset?.longitude
+ };
+
+ useEffect(()=>{
+   if(!window.L||!ref.current||!asset)return;
+
+   const lat=n(displayed.latitude),lng=n(displayed.longitude);
+   if(lat==null||lng==null)return;
+
+   if(!map.current){
+     map.current=window.L.map(ref.current,{
+       zoomControl:false,
+       attributionControl:true
+     }).setView([lat,lng],12);
+
+     if(config.mapTileUrl){
+       window.L.tileLayer(config.mapTileUrl,{
+         attribution:config.mapAttribution,
+         maxZoom:19
+       }).addTo(map.current);
+     }
+
+     window.L.control.zoom({position:'bottomright'}).addTo(map.current);
+     setReady(true);
+   }
+
+   const html=`<div class="assetDashMarker ${tone(asset.status)} ${playing?'playbackActive':''}">
+     <span>${mode==='sea'?'⚓':mode==='phone'?'⌁':'▴'}</span>
+   </div>`;
+
+   if(!marker.current){
+     marker.current=window.L.marker([lat,lng],{
+       icon:window.L.divIcon({
+         className:'',
+         html,
+         iconSize:[38,38],
+         iconAnchor:[19,19]
+       }),
+       zIndexOffset:1000
+     }).addTo(map.current);
+   }else{
+     marker.current.setLatLng([lat,lng]);
+     marker.current.setIcon(window.L.divIcon({
+       className:'',
+       html,
+       iconSize:[38,38],
+       iconAnchor:[19,19]
+     }));
+   }
+
+   if(line.current){
+     line.current.remove();
+     line.current=null;
+   }
+
+   if(playedLine.current){
+     playedLine.current.remove();
+     playedLine.current=null;
+   }
+
+   if(points.length>1){
+     line.current=window.L.polyline(
+       points.map(p=>[p.lat,p.lng]),
+       {
+         color:mode==='sea'?'#46d7ff':mode==='phone'?'#9f7cff':'#35e09a',
+         weight:4,
+         opacity:.28,
+         dashArray:'7 7'
+       }
+     ).addTo(map.current);
+
+     const travelled=points.slice(0,activeIndex+1);
+
+     if(travelled.length>1){
+       playedLine.current=window.L.polyline(
+         travelled.map(p=>[p.lat,p.lng]),
+         {
+           color:mode==='sea'?'#46d7ff':mode==='phone'?'#9f7cff':'#35e09a',
+           weight:5,
+           opacity:.95
+         }
+       ).addTo(map.current);
+     }
+   }
+
+   if(playing){
+     map.current.panTo([lat,lng],{animate:true,duration:.45});
+   }else{
+     map.current.flyTo(
+       [lat,lng],
+       Math.max(map.current.getZoom(),11),
+       {duration:.35}
+     );
+   }
+
+   setTimeout(()=>map.current?.invalidateSize(),80);
+
+ },[asset,trail,mode,activeIndex,playing,playbackSpeed]);
+
+ useEffect(()=>{
+   return()=>{
+     if(map.current){
+       map.current.remove();
+       map.current=null;
+     }
+   };
+ },[]);
+
+ return <div className={`assetMiniMap ${playing?'mapPlaying':''}`} ref={ref}>
+   {ready&&playing&&<div className="mapPlaybackBadge">
+     <i/> PLAYBACK
+   </div>}
+ </div>;
 }
+
 function Shell({eyebrow,title,subtitle,asset,assets,onSelect,accent='cyan',children}){
  return <div className={`assetDashboard ${accent}`}><div className="assetHero"><div><span>{eyebrow}</span><h1>{title}</h1><p>{subtitle}</p></div><div className="assetHeroActions"><div className={`assetPill ${tone(asset?.status)}`}><i/>{asset?.status||'NO ASSET'}</div><select value={asset?.id||''} onChange={e=>onSelect?.(assets.find(x=>x.id===e.target.value)||null)}><option value="">Select asset</option>{assets.map(a=><option key={a.id} value={a.id}>{a.identifier||a.name}</option>)}</select></div></div>{children}</div>
 }
 
-function MovementHistory({trail=[]}){
+function MovementHistory({trail=[],asset}){
  const [range,setRange]=useState('24H');
  const [playing,setPlaying]=useState(false);
- const [cursor,setCursor]=useState(Math.max(0,trail.length-1));
+ const [cursor,setCursor]=useState(0);
+ const [playbackSpeed,setPlaybackSpeed]=useState(1);
 
  const points=trail
   .filter(p=>p&&p.latitude!=null&&p.longitude!=null)
-  .map(p=>({...p,__time:new Date(p.recorded_at||p.created_at||p.timestamp||p.last_updated||0).getTime()}))
+  .map(p=>({
+    ...p,
+    __time:new Date(
+      p.recorded_at||p.created_at||p.timestamp||p.last_updated||0
+    ).getTime()
+  }))
   .filter(p=>Number.isFinite(p.__time)&&p.__time>0)
   .sort((a,b)=>a.__time-b.__time);
 
  const now=Date.now();
- const windowMs=range==='24H'?24*60*60*1000:
-                range==='48H'?48*60*60*1000:
-                7*24*60*60*1000;
+ const windowMs=
+   range==='24H'?24*60*60*1000:
+   range==='48H'?48*60*60*1000:
+   7*24*60*60*1000;
 
  const visible=points.filter(p=>p.__time>=now-windowMs);
 
  useEffect(()=>{
+   setCursor(Math.max(0,visible.length-1));
+   setPlaying(false);
+ },[range,trail.length]);
+
+ useEffect(()=>{
    if(!playing||visible.length<2)return;
+
+   const interval=Math.max(120,700/playbackSpeed);
+
    const id=setInterval(()=>{
      setCursor(i=>{
-       if(i>=visible.length-1){setPlaying(false);return i}
+       if(i>=visible.length-1){
+         setPlaying(false);
+         return i;
+       }
        return i+1;
      });
-   },700);
+   },interval);
+
    return()=>clearInterval(id);
- },[playing,visible.length]);
+ },[playing,visible.length,playbackSpeed]);
 
  const current=visible[cursor]||visible[visible.length-1];
- const speeds=visible.map(p=>Number(p.speed)).filter(Number.isFinite);
+
+ const speeds=visible
+   .map(p=>Number(p.speed))
+   .filter(Number.isFinite);
+
  const maxSpeed=speeds.length?Math.max(...speeds):0;
- const avgSpeed=speeds.length?speeds.reduce((a,b)=>a+b,0)/speeds.length:0;
+ const avgSpeed=speeds.length
+   ?speeds.reduce((a,b)=>a+b,0)/speeds.length
+   :0;
 
  const distance=visible.slice(1).reduce((sum,p,i)=>{
    const a=visible[i],R=6371;
    const dLat=(Number(p.latitude)-Number(a.latitude))*Math.PI/180;
    const dLng=(Number(p.longitude)-Number(a.longitude))*Math.PI/180;
-   const x=Math.sin(dLat/2)**2+
+
+   const x=
+     Math.sin(dLat/2)**2+
      Math.cos(Number(a.latitude)*Math.PI/180)*
      Math.cos(Number(p.latitude)*Math.PI/180)*
      Math.sin(dLng/2)**2;
+
    return sum+2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
  },0);
 
- const stamp=current?.recorded_at||current?.created_at||current?.timestamp||current?.last_updated;
+ const stamp=current?.recorded_at||
+   current?.created_at||
+   current?.timestamp||
+   current?.last_updated;
 
- return <section className="assetCard movementHistory">
+ const currentSpeed=Number(current?.speed);
+
+ const progress=visible.length>1
+   ?(cursor/(visible.length-1))*100
+   :0;
+
+ return <section className="assetCard movementHistoryCard">
+
    <div className="assetSectionHead">
      <div>
-       <b>MOVEMENT HISTORY</b>
-       <small>Recorded GPS movement and playback</small>
+       <b>MOVEMENT HISTORY / PLAYBACK</b>
+       <small>
+         {visible.length
+           ? `${visible.length} telemetry points · ${range}`
+           : 'No telemetry points in selected range'}
+       </small>
      </div>
+
      <History size={18}/>
    </div>
 
-   <div className="historyToolbar">
+   <div className="historyControls">
+
      <div className="historyRanges">
-       {['24H','48H','7D'].map(x=>
-         <button key={x}
-           className={range===x?'active':''}
-           onClick={()=>{setRange(x);setCursor(Math.max(0,visible.length-1));setPlaying(false)}}>
-           {x}
+       {['24H','48H','7D'].map(r=>
+         <button
+           key={r}
+           className={range===r?'active':''}
+           onClick={()=>setRange(r)}
+         >
+           {r}
          </button>
        )}
      </div>
 
-     <div className="historyActions">
-       <button className="outline" disabled={!visible.length}
-         onClick={()=>{setCursor(0);setPlaying(true)}}>
-         ▶ PLAY
-       </button>
-       <button className="outline" onClick={()=>setPlaying(false)}>PAUSE</button>
-       <button className="outline" onClick={()=>{setPlaying(false);setCursor(Math.max(0,visible.length-1))}}>RESET</button>
-     </div>
-   </div>
+     <div className="historyPlaybackButtons">
 
-   <div className="historyStats">
-     <div><span>POINTS</span><b>{visible.length}</b></div>
-     <div><span>DISTANCE</span><b>{distance.toFixed(2)} km</b></div>
-     <div><span>MAX SPEED</span><b>{maxSpeed.toFixed(1)} km/h</b></div>
-     <div><span>AVG SPEED</span><b>{avgSpeed.toFixed(1)} km/h</b></div>
+       <button
+         className="playButton"
+         disabled={visible.length<2}
+         onClick={()=>{
+           if(cursor>=visible.length-1)setCursor(0);
+           setPlaying(v=>!v);
+         }}
+       >
+         {playing?'⏸':'▶'}
+         {playing?' PAUSE':' PLAY'}
+       </button>
+
+       <button
+         className="outline"
+         onClick={()=>{
+           setPlaying(false);
+           setCursor(0);
+         }}
+         disabled={!visible.length}
+       >
+         ↺ RESET
+       </button>
+
+       <div className="speedSelector">
+         <span>PLAYBACK</span>
+         {[1,2,4].map(speed=>
+           <button
+             key={speed}
+             className={playbackSpeed===speed?'active':''}
+             onClick={()=>setPlaybackSpeed(speed)}
+           >
+             {speed}×
+           </button>
+         )}
+       </div>
+
+     </div>
    </div>
 
    <div className="historyTimeline">
-     <div className="historyTimelineTop">
-       <span>{current?'PLAYBACK POSITION':'NO TELEMETRY'}</span>
-       <b>{stamp?new Date(stamp).toLocaleString():'—'}</b>
+
+     <div className="historyTimelineLabels">
+       <span>
+         {visible[0]
+           ? new Date(visible[0].__time).toLocaleString()
+           : '—'}
+       </span>
+
+       <b>
+         {current
+           ? new Date(current.__time).toLocaleString()
+           : 'No position'}
+       </b>
+
+       <span>
+         {visible.length
+           ? new Date(visible[visible.length-1].__time).toLocaleString()
+           : '—'}
+       </span>
      </div>
+
      <input
+       className="historySlider"
        type="range"
        min="0"
        max={Math.max(0,visible.length-1)}
        value={Math.min(cursor,Math.max(0,visible.length-1))}
        disabled={!visible.length}
-       onChange={e=>{setPlaying(false);setCursor(Number(e.target.value))}}
+       onChange={e=>{
+         setPlaying(false);
+         setCursor(Number(e.target.value));
+       }}
      />
-     <div className="historyEndpoints">
-       <span>{visible[0]?.__time?new Date(visible[0].__time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'START'}</span>
-       <span>{visible[visible.length-1]?.__time?new Date(visible[visible.length-1].__time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'END'}</span>
+
+     <div className="historyProgress">
+       <span style={{width:`${progress}%`}}/>
      </div>
+
    </div>
 
-   <div className="historyCurrent">
+   <div className="playbackReadout">
+
      <div>
-       <span>CURRENT POSITION</span>
-       <b>{current?`${fmt(current.latitude)}, ${fmt(current.longitude)}`:'No GPS position'}</b>
+       <span>PLAYBACK TIME</span>
+       <b>{stamp?new Date(stamp).toLocaleString():'—'}</b>
      </div>
+
+     <div>
+       <span>POSITION</span>
+       <b>
+         {current
+           ? `${fmt(current.latitude)}, ${fmt(current.longitude)}`
+           : '—'}
+       </b>
+     </div>
+
      <div>
        <span>SPEED</span>
-       <b>{current?.speed!=null?`${fmt(current.speed)} km/h`:'—'}</b>
+       <b>
+         {Number.isFinite(currentSpeed)
+           ? `${fmt(currentSpeed)} km/h`
+           : '—'}
+       </b>
      </div>
+
      <div>
        <span>HEADING</span>
-       <b>{current?.heading!=null?`${fmt(current.heading)}°`:'—'}</b>
+       <b>
+         {current?.heading!=null
+           ? `${fmt(current.heading)}°`
+           : '—'}
+       </b>
      </div>
-     <div>
-       <span>STATUS</span>
-       <b>{playing?'PLAYING':'PAUSED'}</b>
-     </div>
+
    </div>
+
+   <div className="historyStats">
+
+     <div>
+       <span>POINTS</span>
+       <b>{visible.length}</b>
+     </div>
+
+     <div>
+       <span>DISTANCE</span>
+       <b>{fmt(distance)} km</b>
+     </div>
+
+     <div>
+       <span>AVG SPEED</span>
+       <b>{fmt(avgSpeed)} km/h</b>
+     </div>
+
+     <div>
+       <span>MAX SPEED</span>
+       <b>{fmt(maxSpeed)} km/h</b>
+     </div>
+
+   </div>
+
+   {asset&&<MiniMap
+     asset={asset}
+     trail={visible}
+     playbackIndex={cursor}
+     playing={playing}
+     playbackSpeed={playbackSpeed}
+   />}
+
  </section>
 }
-
-function Telemetry({asset}){return <section className="assetCard"><div className="assetSectionHead"><div><b>LIVE TELEMETRY</b><small>Connected operational data</small></div><Radio size={18}/></div><div className="telemetryList">{[['Identifier',asset.identifier],['Name',asset.name],['Device',asset.device_id||'Not linked'],['Latitude',fmt(asset.latitude)],['Longitude',fmt(asset.longitude)],['Updated',asset.last_updated?new Date(asset.last_updated).toLocaleString():'—']].map(([a,b])=><div key={a}><span>{a}</span><b>{b||'—'}</b></div>)}</div></section>}
 
 export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
  const rows=assets.filter(a=>a.asset_type==='TRUCK'),

@@ -17,18 +17,27 @@
 
     var message = error && error.message
       ? error.message
-      : String(error || 'React application did not mount.');
+      : String(error || 'Unknown startup error');
+
+    var stack = error && error.stack
+      ? '\n\n' + error.stack
+      : '';
+
+    var source = error && error.filename
+      ? '\n\nSource: ' + error.filename +
+        (error.lineno ? ':' + error.lineno : '')
+      : '';
 
     console.error('[JABS TRACKER] Startup failure:', error);
 
     root.innerHTML =
       '<main style="min-height:100vh;background:#02080e;color:#e9f4f8;font-family:system-ui,sans-serif;display:grid;place-items:center;padding:24px">' +
-        '<section style="width:min(680px,100%);background:#07131d;border:1px solid #173140;border-radius:16px;padding:24px;box-shadow:0 20px 60px #0008">' +
-          '<div style="color:#43d9ff;font-size:11px;font-weight:800;letter-spacing:.15em">JABS TRACKER · RUNTIME SAFETY</div>' +
+        '<section style="width:min(720px,100%);background:#07131d;border:1px solid #173140;border-radius:16px;padding:24px;box-shadow:0 20px 60px #0008">' +
+          '<div style="color:#43d9ff;font-size:11px;font-weight:800;letter-spacing:.15em">JABS TRACKER · STARTUP DIAGNOSTICS</div>' +
           '<h1 style="margin:10px 0">Dashboard startup failed</h1>' +
-          '<p style="color:#8ba5b1;line-height:1.6">The application did not mount correctly. Your authentication and stored data have not been deleted.</p>' +
+          '<p style="color:#8ba5b1;line-height:1.6">The production application could not mount. Authentication and stored data have not been deleted.</p>' +
           '<pre style="white-space:pre-wrap;overflow:auto;background:#030b12;border:1px solid #173140;border-radius:10px;padding:14px;color:#ff9aa7;font-size:12px">' +
-            escapeHtml(message) +
+            escapeHtml(message + source + stack) +
           '</pre>' +
           '<button onclick="location.reload()" style="margin-top:14px;background:#43d9ff;color:#031018;border:0;border-radius:9px;padding:12px 16px;font-weight:800">RELOAD DASHBOARD</button>' +
         '</section>' +
@@ -37,21 +46,49 @@
 
   window.__jabsRuntimeError = showStartupFailure;
 
-  /*
-   * Do NOT listen globally for every browser error.
-   * External scripts such as Leaflet can generate "Script error."
-   * without preventing React from starting.
-   */
+  window.addEventListener('error', function (event) {
+    var message = event && event.message
+      ? String(event.message)
+      : '';
+
+    var filename = event && event.filename
+      ? String(event.filename)
+      : '';
+
+    if (message === 'Script error.' && !filename) return;
+
+    var error = new Error(
+      message || 'A JavaScript resource failed to load.'
+    );
+
+    error.filename = filename;
+    error.lineno = event && event.lineno;
+    error.colno = event && event.colno;
+
+    window.__jabsLastRuntimeError = error;
+  }, true);
+
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event && event.reason;
+
+    var error =
+      reason instanceof Error
+        ? reason
+        : new Error(String(reason || 'Unhandled promise rejection.'));
+
+    window.__jabsLastRuntimeError = error;
+  });
 
   setTimeout(function () {
     var root = document.getElementById('root');
 
     if (root && !root.children.length) {
       showStartupFailure(
+        window.__jabsLastRuntimeError ||
         new Error(
-          'React application did not mount. Check the browser console for the module or startup error.'
+          'React application did not mount. The production JavaScript module may have failed to load.'
         )
       );
     }
-  }, 12000);
+  }, 10000);
 })();

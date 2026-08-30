@@ -13,7 +13,6 @@ import {loadAlerts, loadAssets, loadLocations, loadTrips, subscribeToAlerts, sub
 import { config } from './lib/config';
 import { TruckDashboard, ShipDashboard, PhoneDashboard } from './components/AssetDashboards';
 import './styles.css';
-import RuntimeErrorBoundary from './components/RuntimeErrorBoundary';
 
 const nav = [
   ['COMMAND CENTER', Activity], ['FLEET', Truck], ['TRIPS', Route], ['SHIPMENTS', Ship],
@@ -760,8 +759,4 @@ function App(){const [session,setSession]=useState(null),[showCover,setShowCover
  return <div className="app"><aside className={`sidebar ${mobile?'open':''}`}><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="live"><i className="pulse"/> LIVE <small>{config.mapTileUrl?'MAP READY':'MAP CONFIG REQUIRED'}</small></div><nav>{nav.map(([n,I])=><button key={n} className={section===n?'active':''} onClick={()=>go(n)}><I size={17}/><span>{n}</span></button>)}</nav><div className="sideFoot"><ShieldCheck size={16}/><span>SECURE OPERATIONS<br/><b>ROLE CONTROLLED</b></span></div></aside>{mobile&&<button className="mobileBackdrop" onClick={()=>setMobile(false)}/>}<main className="dashboardMain"><header className="topbar"><button className="mobileMenu" onClick={()=>setMobile(v=>!v)}><Menu/></button><div className="crumb">JABS TRACKER <ChevronRight size={14}/><b>{section}</b></div><div className="headerRight"><div className="clock"><Clock3 size={14}/>{new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><button className="iconBtn"><Bell size={18}/>{alerts.length>0&&<i/>}</button><button className="user" onClick={()=>setProfileOpen(v=>!v)}><span>{(profile?.full_name||session.user.email||'U').slice(0,2).toUpperCase()}</span><div><b>{profile?.full_name||'ACCOUNT'}</b><small>{profile?.role||'USER'}</small></div></button>{profileOpen&&<ProfileMenu profile={profile} onLogout={async()=>{await signOut();setSession(null);setProfile(null);setProfileOpen(false);setShowCover(true)}}/>}</div></header><div className="content">{content}</div></main><Toast message={toast} onClose={()=>setToast('')}/></div>;
 }
 
-createRoot(document.getElementById('root')).render(
-  <RuntimeErrorBoundary>
-    <App />
-  </RuntimeErrorBoundary>
-);
+createRoot(document.getElementById('root')).render(<App/>);

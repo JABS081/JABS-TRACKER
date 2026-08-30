@@ -161,33 +161,8 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
       );
     }
 
-    if(trailLayer.current) {
-      trailLayer.current.remove();
-      trailLayer.current=null;
-    }
-
-    const validTrail = trail
-      .filter(p =>
-        p &&
-        Number.isFinite(Number(p.latitude)) &&
-        Number.isFinite(Number(p.longitude))
-      )
-      .map(p => [
-        Number(p.latitude),
-        Number(p.longitude)
-      ]);
-
-    if(validTrail.length > 1) {
-      trailLayer.current = window.L.polyline(
-        validTrail,
-        {
-          color:'#43d9ff',
-          weight:4,
-          opacity:.75
-        }
-      ).addTo(map.current);
-    }
-
+    if(trailLayer.current) trailLayer.current.remove();
+    if(trail.length>1) trailLayer.current=window.L.polyline(trail.map(p=>[p.latitude,p.longitude]),{color:'#43d9ff',weight:4,opacity:.75}).addTo(map.current);
     setTimeout(()=>map.current?.invalidateSize(),100);
   },[assets,selected,trail,onSelect]);
   return <div className="leafletMap" ref={ref}>{!window.L&&<div className="mapProviderError">Map library unavailable</div>}</div>;

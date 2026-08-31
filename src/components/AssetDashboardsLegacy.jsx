@@ -9,6 +9,62 @@ const fmt=v=>v==null?'—':Number(v).toLocaleString(undefined,{maximumFractionDi
 function Metric({icon:Icon,label,value,meta}){return <div className="assetMetric"><div className="assetMetricIcon"><Icon size={17}/></div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></div>}
 function EmptyAsset({icon:Icon,title,text}){return <div className="assetEmpty"><Icon size={34}/><h3>{title}</h3><p>{text}</p></div>}
 function Status({children}){return <span className={`status ${tone(children)}`}>{children || 'UNKNOWN'}</span>}
+function Telemetry({asset}){
+ const speed=n(asset?.speed);
+ const heading=n(asset?.heading);
+ const lat=n(asset?.latitude);
+ const lng=n(asset?.longitude);
+ const accuracy=n(asset?.accuracy);
+ const updated=asset?.last_updated||asset?.updated_at||asset?.recorded_at||asset?.timestamp;
+ const updatedDate=updated?new Date(updated):null;
+ const validUpdated=updatedDate&&!Number.isNaN(updatedDate.getTime());
+
+ return <section className="assetCard telemetryCard">
+   <div className="assetSectionHead">
+     <div>
+       <b>LIVE TELEMETRY</b>
+       <small>Current asset telemetry snapshot</small>
+     </div>
+     <Radio size={18}/>
+   </div>
+
+   <div className="telemetryList">
+     <div>
+       <span>Speed</span>
+       <b>{speed==null?'—':`${fmt(speed)} km/h`}</b>
+     </div>
+
+     <div>
+       <span>Heading</span>
+       <b>{heading==null?'—':`${fmt(heading)}°`}</b>
+     </div>
+
+     <div>
+       <span>Latitude</span>
+       <b>{lat==null?'—':fmt(lat)}</b>
+     </div>
+
+     <div>
+       <span>Longitude</span>
+       <b>{lng==null?'—':fmt(lng)}</b>
+     </div>
+
+     <div>
+       <span>Accuracy</span>
+       <b>{accuracy==null?'—':`±${fmt(accuracy)} m`}</b>
+     </div>
+
+     <div>
+       <span>Last update</span>
+       <b>{validUpdated?updatedDate.toLocaleTimeString([],{
+         hour:'2-digit',
+         minute:'2-digit',
+         second:'2-digit'
+       }):'—'}</b>
+     </div>
+   </div>
+ </section>
+}
 function MiniMap({asset,trail=[],mode='road',playbackIndex=null,playing=false,playbackSpeed=1}){
  const ref=useRef(null),map=useRef(null),marker=useRef(null),line=useRef(null),playedLine=useRef(null);
  const [ready,setReady]=useState(false);

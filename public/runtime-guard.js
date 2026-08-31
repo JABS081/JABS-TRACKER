@@ -44,6 +44,76 @@
       '</main>';
   }
 
+
+  // Final Leaflet safety net: malformed marker coordinates must never
+  // take down the entire React dashboard.
+  function hardenLeafletMarkers() {
+    var L = window.L;
+    if (!L || !L.Marker || !L.Marker.prototype) return;
+    if (L.__jabsMarkerGuardInstalled) return;
+
+    L.__jabsMarkerGuardInstalled = true;
+
+    var proto = L.Marker.prototype;
+    var originalOnAdd = proto.onAdd;
+    var originalUpdate = proto.update;
+    var originalSetLatLng = proto.setLatLng;
+    var originalAnimateZoom = proto._animateZoom;
+
+    function valid(point) {
+      return point &&
+        Number.isFinite(Number(point.lat)) &&
+        Number.isFinite(Number(point.lng)) &&
+        Number(point.lat) >= -90 &&
+        Number(point.lat) <= 90 &&
+        Number(point.lng) >= -180 &&
+        Number(point.lng) <= 180;
+    }
+
+    proto.onAdd = function(map) {
+      if (!valid(this._latlng)) {
+        console.warn('[JABS TRACKER] Blocked malformed Leaflet marker:', this._latlng);
+        return this;
+      }
+      return originalOnAdd.call(this,map);
+    };
+
+    proto.update = function() {
+      if (!valid(this._latlng)) {
+        console.warn('[JABS TRACKER] Blocked malformed Leaflet marker update:', this._latlng);
+        return this;
+      }
+      return originalUpdate.call(this);
+    };
+
+    proto.setLatLng = function(latlng) {
+      try {
+        var candidate = L.latLng(latlng);
+        if (!valid(candidate)) {
+          console.warn('[JABS TRACKER] Rejected malformed marker coordinate:', latlng);
+          return this;
+        }
+        return originalSetLatLng.call(this,candidate);
+      } catch (error) {
+        console.warn('[JABS TRACKER] Rejected invalid marker coordinate:', latlng);
+        return this;
+      }
+    };
+
+    proto._animateZoom = function(event) {
+      if (!valid(this._latlng)) return;
+      return originalAnimateZoom.call(this,event);
+    };
+
+    console.info('[JABS TRACKER] Leaflet marker safety guard enabled.');
+  }
+
+  try {
+    hardenLeafletMarkers();
+  } catch (error) {
+    console.warn('[JABS TRACKER] Leaflet marker guard failed:',error);
+  }
+
   window.__jabsRuntimeError = showStartupFailure;
 
   window.addEventListener('error', function (event) {

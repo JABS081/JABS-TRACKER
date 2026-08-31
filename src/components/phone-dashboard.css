@@ -743,3 +743,272 @@
   }
 
 }
+
+
+/* JABS PHONE MAP HARDENING */
+
+.phoneMapStage{
+  position:relative;
+  width:100%;
+  min-height:520px;
+  overflow:hidden;
+  background:#06121a;
+  border-radius:0;
+}
+
+.phoneCommandMap{
+  position:relative;
+  width:100%;
+  height:520px;
+  min-height:520px;
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(159,124,255,.08),
+      transparent 48%
+    ),
+    #06121a;
+  z-index:1;
+}
+
+.phoneCommandMap .leaflet-container{
+  width:100%;
+  height:100%;
+  background:#06121a;
+  font-family:inherit;
+}
+
+.phoneCommandMap .leaflet-control-zoom{
+  margin-right:14px;
+  margin-bottom:14px;
+  border:1px solid rgba(159,124,255,.24)!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.35);
+}
+
+.phoneCommandMap .leaflet-control-zoom a{
+  width:32px!important;
+  height:32px!important;
+  line-height:32px!important;
+  background:#07151f!important;
+  color:#dcd4ff!important;
+  border-color:#18303d!important;
+}
+
+.phoneCommandMap .leaflet-control-zoom a:hover{
+  background:#102433!important;
+}
+
+.phoneCommandMap .leaflet-control-attribution{
+  background:rgba(2,11,17,.78)!important;
+  color:#617985!important;
+  font-size:7px!important;
+}
+
+.phoneCommandMap .leaflet-control-attribution a{
+  color:#8c7dd0!important;
+}
+
+.phoneMapLeafletIcon{
+  background:transparent!important;
+  border:0!important;
+}
+
+.phoneMapMarker{
+  width:46px;
+  height:46px;
+  display:grid;
+  place-items:center;
+  position:relative;
+  border-radius:50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(159,124,255,.34),
+      rgba(159,124,255,.08) 52%,
+      transparent 72%
+    );
+  border:1px solid rgba(194,177,255,.72);
+  color:#eee9ff;
+  box-shadow:
+    0 0 0 6px rgba(159,124,255,.07),
+    0 0 30px rgba(159,124,255,.36);
+  animation:jabsPhonePulse 2.2s ease-in-out infinite;
+}
+
+.phoneMapMarker span{
+  font-size:24px;
+  line-height:1;
+  transform:translateY(-1px);
+  text-shadow:0 0 14px rgba(199,183,255,.9);
+}
+
+.phoneMapMarker i{
+  position:absolute;
+  width:7px;
+  height:7px;
+  right:5px;
+  top:5px;
+  border-radius:50%;
+  background:#35e09a;
+  box-shadow:0 0 12px rgba(53,224,154,.95);
+}
+
+.phoneMapTools{
+  position:absolute;
+  z-index:700;
+  top:14px;
+  right:14px;
+  display:flex;
+  gap:7px;
+}
+
+.phoneMapTools button{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:9px 11px;
+  border-radius:8px;
+  border:1px solid rgba(159,124,255,.25);
+  background:rgba(3,12,19,.88);
+  color:#d9d1ff;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.1em;
+  backdrop-filter:blur(12px);
+  box-shadow:0 10px 24px rgba(0,0,0,.25);
+}
+
+.phoneMapTools button:hover{
+  border-color:rgba(159,124,255,.62);
+  background:rgba(15,25,37,.94);
+}
+
+.phoneGpsState{
+  position:absolute;
+  z-index:700;
+  left:14px;
+  top:14px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:9px 11px;
+  border-radius:8px;
+  background:rgba(3,12,19,.88);
+  border:1px solid rgba(53,224,154,.24);
+  color:#8debc5;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.1em;
+  backdrop-filter:blur(12px);
+}
+
+.phoneGpsState.waiting{
+  color:#ffcf83;
+  border-color:rgba(255,184,77,.28);
+}
+
+.phoneGpsState i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#35e09a;
+  box-shadow:0 0 12px rgba(53,224,154,.85);
+}
+
+.phoneGpsState.waiting i{
+  background:#ffb84d;
+  box-shadow:0 0 12px rgba(255,184,77,.7);
+}
+
+.phoneMapWaiting{
+  position:absolute;
+  z-index:650;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  width:min(330px,80%);
+  padding:24px;
+  text-align:center;
+  border:1px solid rgba(159,124,255,.22);
+  border-radius:14px;
+  background:rgba(3,12,19,.82);
+  backdrop-filter:blur(16px);
+  box-shadow:0 25px 60px rgba(0,0,0,.38);
+  color:#8e7ed0;
+}
+
+.phoneMapWaiting svg{
+  margin-bottom:10px;
+  opacity:.9;
+}
+
+.phoneMapWaiting b{
+  display:block;
+  color:#e5e0ff;
+  font-size:10px;
+  letter-spacing:.12em;
+}
+
+.phoneMapWaiting span{
+  display:block;
+  margin-top:8px;
+  color:#718994;
+  font-size:9px;
+  line-height:1.55;
+}
+
+@keyframes jabsPhonePulse{
+  0%,100%{
+    transform:scale(1);
+  }
+  50%{
+    transform:scale(1.045);
+  }
+}
+
+@media(max-width:700px){
+
+  .phoneMapStage{
+    min-height:390px;
+    border-radius:10px;
+  }
+
+  .phoneCommandMap{
+    height:390px;
+    min-height:390px;
+  }
+
+  .phoneMapTools{
+    top:auto;
+    right:10px;
+    bottom:12px;
+  }
+
+  .phoneMapTools button{
+    padding:9px 10px;
+  }
+
+  .phoneGpsState{
+    top:10px;
+    left:10px;
+  }
+
+  .phoneMapWaiting{
+    padding:18px;
+  }
+
+}
+
+@media(max-width:430px){
+
+  .phoneCommandMap{
+    height:360px;
+    min-height:360px;
+  }
+
+  .phoneMapTools button{
+    font-size:7px;
+    padding:8px 9px;
+  }
+
+}

@@ -24,6 +24,30 @@ const nav = [
 const statusTone = s => ({ MOVING:'good', ACTIVE:'good', IN_TRANSIT:'info', TRANSIT:'info', STOPPED:'warn', IDLE:'warn', OFFLINE:'danger', DELAYED:'danger', AT_CUSTOMER:'info', LOADING:'warn' }[String(s||'').toUpperCase()] || 'info');
 const iconFor = type => type === 'SHIP' ? Ship : type === 'PHONE' ? Smartphone : Truck;
 
+const toCoordinate = (latValue,lngValue) => {
+  const parse = value => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && value.trim() !== '') return Number(value);
+    return NaN;
+  };
+
+  const lat = parse(latValue);
+  const lng = parse(lngValue);
+
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    return null;
+  }
+
+  return [lat,lng];
+};
+
 function Toast({message,onClose}) { if(!message)return null; return <div className="toast"><AlertTriangle size={16}/><span>{message}</span><button onClick={onClose}><X size={14}/></button></div>; }
 function Status({children}) { return <span className={`status ${statusTone(children)}`}>{children || 'UNKNOWN'}</span>; }
 function Stat({icon:Icon,label,value,meta,tone='cyan'}) { return <div className="stat"><div className={`statIcon ${tone}`}><Icon size={18}/></div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></div>; }
@@ -116,46 +140,84 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
       window.L.control.zoom({position:'bottomright'}).addTo(map.current);
     }
     const m=markers.current;
-    assets.forEach(a=>{if(!Number.isFinite(Number(a.latitude))||!Number.isFinite(Number(a.longitude)))return;const key=a.id;let marker=m.get(key);const Icon=iconFor(a.asset_type);const html=`<div class="assetMarker ${String(a.status).toLowerCase()}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;if(!marker){marker=window.L.marker([a.latitude,a.longitude],{icon:window.L.divIcon({className:'',html,iconSize:[34,34],iconAnchor:[17,17]})}).addTo(map.current);
+
+    assets.forEach(a=>{
+      const point=toCoordinate(a.latitude,a.longitude);
+      if(!point) return;
+
+      const key=a.id;
+      let marker=m.get(key);
+
+      const html=`<div class="assetMarker ${String(a.status).toLowerCase()}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;
+
+      if(!marker){
+        marker=window.L.marker(
+          window.L.latLng(point[0],point[1]),
+          {
+            icon:window.L.divIcon({
+              className:'',
+              html,
+              iconSize:[34,34],
+              iconAnchor:[17,17]
+            })
+          }
+        ).addTo(map.current);
+
         marker.bindTooltip(
           `<b>${a.identifier || a.name || 'ASSET'}</b><br/>${a.asset_type || 'ASSET'} · ${a.status || 'UNKNOWN'}`,
           {direction:'top',offset:[0,-18],opacity:.94}
         );
-        marker.on('click',()=>onSelect(a));
-        m.set(key,marker)}else marker.setLatLng([a.latitude,a.longitude]);});
-    [...m.keys()].filter(k=>!assets.some(a=>a.id===k)).forEach(k=>{m.get(k).remove();m.delete(k)});
-    const positionedAssets = assets.filter(a =>
-      Number.isFinite(Number(a.latitude)) &&
-      Number.isFinite(Number(a.longitude))
-    );
 
-    if(selected &&
-       Number.isFinite(Number(selected.latitude)) &&
-       Number.isFinite(Number(selected.longitude))) {
+        marker.on('click',()=>onSelect(a));
+        m.set(key,marker);
+      }else{
+        marker.setLatLng(
+          window.L.latLng(point[0],point[1])
+        );
+      }
+    });
+
+    [...m.keys()]
+      .filter(k=>!assets.some(a=>a.id===k))
+      .forEach(k=>{
+        m.get(k).remove();
+        m.delete(k);
+      });
+
+    const positionedAssets=assets
+      .map(a=>toCoordinate(a.latitude,a.longitude))
+      .filter(Boolean);
+
+    const selectedPoint=selected
+      ?toCoordinate(selected.latitude,selected.longitude)
+      :null;
+
+    if(selectedPoint){
       map.current.flyTo(
-        [Number(selected.latitude), Number(selected.longitude)],
+        window.L.latLng(selectedPoint[0],selectedPoint[1]),
         13,
         {duration:.7}
       );
-    } else if(positionedAssets.length > 1) {
-      const bounds = window.L.latLngBounds(
-        positionedAssets.map(a => [
-          Number(a.latitude),
-          Number(a.longitude)
-        ])
+    }else if(positionedAssets.length>1){
+      const bounds=window.L.latLngBounds(
+        positionedAssets.map(point=>
+          window.L.latLng(point[0],point[1])
+        )
       );
 
-      map.current.fitBounds(bounds, {
-        padding: [55,55],
-        maxZoom: 12,
-        animate: true
-      });
-    } else if(positionedAssets.length === 1) {
+      if(bounds.isValid()){
+        map.current.fitBounds(bounds,{
+          padding:[55,55],
+          maxZoom:12,
+          animate:true
+        });
+      }
+    }else if(positionedAssets.length===1){
       map.current.setView(
-        [
-          Number(positionedAssets[0].latitude),
-          Number(positionedAssets[0].longitude)
-        ],
+        window.L.latLng(
+          positionedAssets[0][0],
+          positionedAssets[0][1]
+        ),
         11,
         {animate:true}
       );
@@ -167,15 +229,8 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
     }
 
     const validTrail = trail
-      .filter(p =>
-        p &&
-        Number.isFinite(Number(p.latitude)) &&
-        Number.isFinite(Number(p.longitude))
-      )
-      .map(p => [
-        Number(p.latitude),
-        Number(p.longitude)
-      ]);
+      .map(p=>p ? toCoordinate(p.latitude,p.longitude) : null)
+      .filter(Boolean);
 
     if(validTrail.length > 1) {
       trailLayer.current = window.L.polyline(
@@ -195,7 +250,7 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
 
 function LiveMap({assets,selected,setSelected,trail}) { return <div className="mapPanel"><div className="panelHead"><div><b>LIVE ASSET MAP</b><small>{assets.length} tracked assets · realtime feed</small></div><div className="mapTools"><span className="liveBadge"><i className="pulse"/> LIVE</span></div></div><LeafletMap assets={assets} selected={selected} onSelect={setSelected} trail={trail}/><div className="mapLegend"><span><i className="goodDot"/> Moving</span><span><i className="warnDot"/> Idle</span><span><i className="dangerDot"/> Offline / Exception</span></div></div> }
 
-function AssetDrawer({asset,onClose,trail}){if(!asset)return null;const Icon=iconFor(asset.asset_type);return <aside className="assetDrawer"><div className="drawerHead"><div><span className="assetIcon"><Icon size={17}/></span><div><b>{asset.identifier||asset.name}</b><small>{asset.name||asset.asset_type}</small></div></div><button onClick={onClose}><X/></button></div><div className="drawerStatus"><Status>{asset.status}</Status><span>Updated {asset.last_updated?new Date(asset.last_updated).toLocaleString():'—'}</span></div><div className="metricGrid"><div><small>SPEED</small><b>{asset.speed??0} km/h</b></div><div><small>HEADING</small><b>{asset.heading??0}°</b></div><div><small>LATITUDE</small><b>{Number(asset.latitude).toFixed(5)}</b></div><div><small>LONGITUDE</small><b>{Number(asset.longitude).toFixed(5)}</b></div></div><div className="drawerSection"><b>TRIP CONTEXT</b><p>{asset.current_trip_id||'No active trip linked'}</p></div><div className="drawerSection"><b>RECENT TRAIL</b><p>{trail.length} location points loaded for the selected window.</p></div><button className="outline wide"><History size={15}/> Open movement history</button></aside>}
+function AssetDrawer({asset,onClose,trail}){if(!asset)return null;const Icon=iconFor(asset.asset_type);return <aside className="assetDrawer"><div className="drawerHead"><div><span className="assetIcon"><Icon size={17}/></span><div><b>{asset.identifier||asset.name}</b><small>{asset.name||asset.asset_type}</small></div></div><button onClick={onClose}><X/></button></div><div className="drawerStatus"><Status>{asset.status}</Status><span>Updated {asset.last_updated?new Date(asset.last_updated).toLocaleString():'—'}</span></div><div className="metricGrid"><div><small>SPEED</small><b>{asset.speed??0} km/h</b></div><div><small>HEADING</small><b>{asset.heading??0}°</b></div><div><small>LATITUDE</small><b>{toCoordinate(asset.latitude,asset.longitude)?.[0]?.toFixed(5) ?? '—'}</b></div><div><small>LONGITUDE</small><b>{toCoordinate(asset.latitude,asset.longitude)?.[1]?.toFixed(5) ?? '—'}</b></div></div><div className="drawerSection"><b>TRIP CONTEXT</b><p>{asset.current_trip_id||'No active trip linked'}</p></div><div className="drawerSection"><b>RECENT TRAIL</b><p>{trail.length} location points loaded for the selected window.</p></div><button className="outline wide"><History size={15}/> Open movement history</button></aside>}
 
 function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh}) {
   const moving=assets.filter(a=>['MOVING','IN_TRANSIT','TRANSIT'].includes(String(a.status).toUpperCase())).length;

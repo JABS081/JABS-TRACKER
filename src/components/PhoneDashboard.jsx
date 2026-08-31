@@ -52,113 +52,257 @@ function PhoneMap({asset,trail=[]}){
   const map=useRef(null);
   const marker=useRef(null);
   const line=useRef(null);
+  const retry=useRef(null);
 
-  const points=useMemo(()=>trail
-    .filter(p=>p?.latitude!=null&&p?.longitude!=null)
-    .map(p=>[
-      Number(p.latitude),
-      Number(p.longitude)
-    ])
-    .filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),
+  const points=useMemo(
+    ()=>trail
+      .filter(p=>p?.latitude!=null&&p?.longitude!=null)
+      .map(p=>[
+        Number(p.latitude),
+        Number(p.longitude)
+      ])
+      .filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),
     [trail]
   );
 
-  useEffect(()=>{
+  const liveLat=num(asset?.latitude);
+  const liveLng=num(asset?.longitude);
 
-    if(!window.L||!ref.current||!asset)return;
+  const hasLivePosition=
+    liveLat!=null&&
+    liveLng!=null&&
+    liveLat>=-90&&
+    liveLat<=90&&
+    liveLng>=-180&&
+    liveLng<=180;
 
-    const lat=num(asset.latitude);
-    const lng=num(asset.longitude);
+  const lastTrailPoint=
+    points.length
+      ?points[points.length-1]
+      :null;
 
-    if(lat==null||lng==null)return;
+  const fallbackCenter=[6.5244,3.3792];
+
+  const position=
+    hasLivePosition
+      ?[liveLat,liveLng]
+      :lastTrailPoint||fallbackCenter;
+
+  const centerPhone=()=>{
+
+    if(!map.current)return;
+
+    map.current.flyTo(
+      position,
+      Math.max(map.current.getZoom(),13),
+      {duration:.5}
+    );
+
+  };
+
+  const fitTrail=()=>{
+
+    if(!map.current)return;
+
+    if(points.length>1){
+
+      const bounds=window.L.latLngBounds(points);
+
+      map.current.fitBounds(
+        bounds,
+        {
+          padding:[45,45],
+          maxZoom:16,
+          animate:true
+        }
+      );
+
+    }else{
+
+      centerPhone();
+
+    }
+
+  };
+
+  const initialise=()=>{
+
+    if(!ref.current)return false;
+
+    if(!window.L){
+
+      retry.current=setTimeout(
+        initialise,
+        250
+      );
+
+      return false;
+    }
 
     if(!map.current){
 
       map.current=window.L
         .map(ref.current,{
           zoomControl:false,
-          attributionControl:true
-        })
-        .setView([lat,lng],13);
+          attributionControl:true,
+          preferCanvas:true,
+          center:position,
+          zoom:13
+        });
 
       if(config.mapTileUrl){
 
         window.L
-          .tileLayer(config.mapTileUrl,{
-            attribution:config.mapAttribution,
-            maxZoom:19
-          })
+          .tileLayer(
+            config.mapTileUrl,
+            {
+              attribution:config.mapAttribution,
+              maxZoom:19,
+              crossOrigin:true
+            }
+          )
           .addTo(map.current);
 
       }
 
       window.L
         .control
-        .zoom({position:'bottomright'})
+        .zoom({
+          position:'bottomright'
+        })
         .addTo(map.current);
 
     }
 
     const icon=window.L.divIcon({
-      className:'',
+      className:'phoneMapLeafletIcon',
       html:`
         <div class="phoneMapMarker">
           <span>⌁</span>
+          <i></i>
         </div>
       `,
-      iconSize:[42,42],
-      iconAnchor:[21,21]
+      iconSize:[46,46],
+      iconAnchor:[23,23]
     });
 
-    if(!marker.current){
+    if(marker.current){
 
-      marker.current=window.L
-        .marker([lat,lng],{
-          icon,
-          zIndexOffset:1000
-        })
-        .addTo(map.current);
+      marker.current.setLatLng(position);
+      marker.current.setIcon(icon);
 
     }else{
 
-      marker.current.setLatLng([lat,lng]);
-      marker.current.setIcon(icon);
+      marker.current=
+        window.L
+          .marker(position,{
+            icon,
+            zIndexOffset:1000
+          })
+          .addTo(map.current);
 
     }
 
+    marker.current.unbindTooltip();
+
+    marker.current.bindTooltip(
+      hasLivePosition
+        ?`${asset?.identifier||asset?.name||'PHONE'} · LIVE`
+        :`${asset?.identifier||asset?.name||'PHONE'} · WAITING FOR GPS`,
+      {
+        direction:'top',
+        offset:[0,-22],
+        opacity:.96
+      }
+    );
+
     if(line.current){
+
       line.current.remove();
       line.current=null;
+
     }
 
     if(points.length>1){
 
-      line.current=window.L
-        .polyline(points,{
-          color:'#9f7cff',
-          weight:5,
-          opacity:.8
-        })
-        .addTo(map.current);
+      line.current=
+        window.L
+          .polyline(
+            points,
+            {
+              color:'#9f7cff',
+              weight:5,
+              opacity:.82,
+              lineCap:'round',
+              lineJoin:'round'
+            }
+          )
+          .addTo(map.current);
 
     }
 
-    map.current.flyTo(
-      [lat,lng],
-      Math.max(map.current.getZoom(),12),
-      {duration:.45}
+    if(hasLivePosition){
+
+      map.current.panTo(
+        position,
+        {
+          animate:true,
+          duration:.45
+        }
+      );
+
+    }
+
+    requestAnimationFrame(
+      ()=>{
+        map.current?.invalidateSize({
+          pan:false
+        });
+      }
     );
 
-    setTimeout(
-      ()=>map.current?.invalidateSize(),
-      100
-    );
+    return true;
+  };
 
-  },[asset,points]);
+  useEffect(()=>{
+
+    initialise();
+
+    return()=>{
+
+      if(retry.current){
+        clearTimeout(retry.current);
+        retry.current=null;
+      }
+
+    };
+
+  },[]);
+
+  useEffect(()=>{
+
+    if(!map.current)return;
+
+    const update=()=>initialise();
+
+    update();
+
+  },[
+    liveLat,
+    liveLng,
+    asset?.identifier,
+    asset?.name,
+    points
+  ]);
 
   useEffect(()=>{
 
     return()=>{
+
+      if(retry.current){
+        clearTimeout(retry.current);
+        retry.current=null;
+      }
 
       if(map.current){
 
@@ -167,16 +311,82 @@ function PhoneMap({asset,trail=[]}){
 
       }
 
+      marker.current=null;
+      line.current=null;
+
     };
 
   },[]);
 
-  return (
-    <div
-      ref={ref}
-      className="phoneCommandMap"
-    />
+  return(
+    <div className="phoneMapStage">
+
+      <div
+        ref={ref}
+        className="phoneCommandMap"
+      />
+
+      <div className="phoneMapTools">
+
+        <button
+          type="button"
+          onClick={centerPhone}
+          title="Center map on phone"
+        >
+          <LocateFixed size={14}/>
+          CENTER
+        </button>
+
+        <button
+          type="button"
+          onClick={fitTrail}
+          title="Fit historical phone trail"
+        >
+          <Route size={14}/>
+          TRAIL
+        </button>
+
+      </div>
+
+      <div
+        className={
+          `phoneGpsState ${
+            hasLivePosition
+              ?'live'
+              :'waiting'
+          }`
+        }
+      >
+
+        <i/>
+
+        {hasLivePosition
+          ?'GPS POSITION ACTIVE'
+          :'WAITING FOR GPS'}
+
+      </div>
+
+      {!hasLivePosition&&points.length===0&&(
+
+        <div className="phoneMapWaiting">
+
+          <LocateFixed size={28}/>
+
+          <b>WAITING FOR DEVICE LOCATION</b>
+
+          <span>
+            The map is ready. A position will
+            appear when authorized telemetry
+            is received.
+          </span>
+
+        </div>
+
+      )}
+
+    </div>
   );
+
 }
 
 function Metric({icon:Icon,label,value,meta}){

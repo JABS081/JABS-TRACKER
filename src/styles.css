@@ -645,3 +645,54 @@
     flex:1 1 45%;
   }
 }
+
+/* JABS SUBSCRIPTION-AWARE SIDEBAR */
+.companyAccess{
+  margin:10px 12px 8px;
+  padding:11px 12px;
+  border:1px solid rgba(159,124,255,.18);
+  border-radius:10px;
+  background:rgba(159,124,255,.06);
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.companyAccess span{
+  font-size:8px;
+  letter-spacing:.12em;
+  color:#718692;
+}
+
+.companyAccess b{
+  color:#eeeaff;
+  font-size:11px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.companyAccess small{
+  color:#9f7cff;
+  font-size:8px;
+  letter-spacing:.08em;
+}
+
+.sidebar nav button.locked{
+  opacity:.48;
+  position:relative;
+}
+
+.sidebar nav button.locked:hover{
+  opacity:.72;
+}
+
+.moduleLock{
+  margin-left:auto;
+  font-size:7px;
+  letter-spacing:.08em;
+  color:#8997a0;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:4px;
+  padding:2px 4px;
+}

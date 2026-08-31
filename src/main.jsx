@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { loadModuleAccess, sectionAllowed } from './lib/moduleAccess';
 import { createRoot } from 'react-dom/client';
 import {
   Activity, AlertTriangle, Anchor, ArrowRight, BarChart3, Bell, Boxes, CheckCircle2, ChevronRight,
@@ -808,9 +809,45 @@ function Billing(){
 }
 function ProfileMenu({profile,onLogout}){return <div className="profileMenu"><div className="profileTop"><CircleUserRound size={20}/><div><b>{profile?.full_name||'Authenticated User'}</b><small>{profile?.role||'USER'}</small></div></div><button onClick={onLogout}><LogOut size={15}/> Sign out securely</button></div>}
 
-function App(){const [session,setSession]=useState(null),[showCover,setShowCover]=useState(true),[profile,setProfile]=useState(null),[section,setSection]=useState('COMMAND CENTER'),[assets,setAssets]=useState([]),[alerts,setAlerts]=useState([]),[geofences,setGeofences]=useState([]),[trips,setTrips]=useState([]),[selected,setSelected]=useState(null),[trail,setTrail]=useState([]),[mobile,setMobile]=useState(false),[profileOpen,setProfileOpen]=useState(false),[toast,setToast]=useState('');
+function App(){const [session,setSession]=useState(null),[showCover,setShowCover]=useState(true),[profile,setProfile]=useState(null),[section,setSection]=useState('COMMAND CENTER'),[assets,setAssets]=useState([]),[alerts,setAlerts]=useState([]),[geofences,setGeofences]=useState([]),[trips,setTrips]=useState([]),[selected,setSelected]=useState(null),[trail,setTrail]=useState([]),[mobile,setMobile]=useState(false),[profileOpen,setProfileOpen]=useState(false),[toast,setToast]=useState(''),[moduleCodes,setModuleCodes]=useState([]),[company,setCompany]=useState(null),[moduleAccessLoading,setModuleAccessLoading]=useState(true),[moduleAccessError,setModuleAccessError]=useState('');
  const refresh=async()=>{const [a,al,t,g]=await Promise.all([loadAssets(),loadAlerts(),loadTrips(),loadGeofences()]);if(a.error)setToast(a.error.message);setAssets(a.data||[]);setAlerts((al.data||[]).filter(x=>!x.acknowledged));setTrips(t.data||[]);setGeofences(g.data||[])};
  useEffect(()=>{getSession().then(({data})=>setSession(data.session)); if(supabase){const {data}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s));return()=>data.subscription.unsubscribe()}},[]);
+useEffect(()=>{
+  let cancelled=false;
+
+  const loadAccess=async()=>{
+    if(!session?.user?.id){
+      if(!cancelled){
+        setModuleCodes([]);
+        setCompany(null);
+        setModuleAccessError('');
+        setModuleAccessLoading(false);
+      }
+      return;
+    }
+
+    setModuleAccessLoading(true);
+    setModuleAccessError('');
+
+    const result=await loadModuleAccess(session.user.id);
+
+    if(cancelled)return;
+
+    setCompany(result.company||null);
+    setModuleCodes(result.moduleCodes||[]);
+
+    if(result.error){
+      setModuleAccessError(result.error.message||'Unable to determine module access.');
+    }
+
+    setModuleAccessLoading(false);
+  };
+
+  loadAccess();
+
+  return()=>{cancelled=true};
+},[session]);
+
  useEffect(()=>{
   if(!session)return;
 
@@ -835,9 +872,18 @@ function App(){const [session,setSession]=useState(null),[showCover,setShowCover
  useEffect(()=>{if(!session||!supabase)return;supabase.from('profiles').select('full_name,role,phone').eq('id',session.user.id).maybeSingle().then(({data})=>setProfile(data||{}))},[session]);
  useEffect(()=>{if(selected)loadLocations(selected,24).then(({data})=>setTrail(data||[]))},[selected]);
  if(!session)return showCover?<Cover onEnter={()=>setShowCover(false)}/>:<Login onAuthenticated={s=>{setSession(s);setShowCover(false)}}/>;
- const go=n=>{setSection(n);setMobile(false)};
+ const go=n=>{
+  if(!sectionAllowed(n,moduleCodes)){
+    setToast('This module is not included in your organization subscription.');
+    setMobile(false);
+    return;
+  }
+
+  setSection(n);
+  setMobile(false);
+};
  const content= section==='COMMAND CENTER'?<CommandCenter assets={assets} alerts={alerts} trips={trips} selected={selected} setSelected={setSelected} trail={trail} refresh={refresh}/> : section==='PHONE TRACKING'?<PhoneDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ANALYTICS'?<Analytics assets={assets} trips={trips}/>:section==='BILLING'?<Billing/>:section==='FLEET'?<TruckDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='SHIP TRACKING'?<ShipDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ALERTS'?<TablePage title="Alerts" icon={AlertTriangle} rows={alerts} columns={['TITLE','ALERT_TYPE','SEVERITY','MESSAGE','CREATED_AT']}/>:section==='TRIPS'?<TablePage title="Trips" icon={Route} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ETA','CREATED_AT']}/>:section==='REPORTS'?<TablePage title="Reports" icon={Database} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ACTUAL_DISTANCE_KM']}/>:section==='DEVICES'?<TablePage title="Devices" icon={Wifi} rows={assets.filter(a=>a.device_id)} columns={['IDENTIFIER','DEVICE_ID','ASSET_TYPE','STATUS','LAST_UPDATED']}/>:section==='GEOFENCES'?<GeofenceControlCenter geofences={geofences} assets={assets} refresh={refresh}/>:section==='SHIPMENTS'?<TablePage title="Shipments" icon={Package} rows={[]} columns={['SHIPMENT_ID','STATUS','ORIGIN','DESTINATION','ETA']}/>:<div className="page"><div className="pageHero"><div><span>ADMINISTRATION</span><h1>{section}</h1><p>Access-controlled module. Connect the corresponding backend records before enabling mutations.</p></div></div><Empty text="No administrative records are exposed to this role."/></div>;
- return <div className="app"><aside className={`sidebar ${mobile?'open':''}`}><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="live"><i className="pulse"/> LIVE <small>{config.mapTileUrl?'MAP READY':'MAP CONFIG REQUIRED'}</small></div><nav>{nav.map(([n,I])=><button key={n} className={section===n?'active':''} onClick={()=>go(n)}><I size={17}/><span>{n}</span></button>)}</nav><div className="sideFoot"><ShieldCheck size={16}/><span>SECURE OPERATIONS<br/><b>ROLE CONTROLLED</b></span></div></aside>{mobile&&<button className="mobileBackdrop" onClick={()=>setMobile(false)}/>}<main className="dashboardMain"><header className="topbar"><button className="mobileMenu" onClick={()=>setMobile(v=>!v)}><Menu/></button><div className="crumb">JABS TRACKER <ChevronRight size={14}/><b>{section}</b></div><div className="headerRight"><div className="clock"><Clock3 size={14}/>{new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><button className="iconBtn"><Bell size={18}/>{alerts.length>0&&<i/>}</button><button className="user" onClick={()=>setProfileOpen(v=>!v)}><span>{(profile?.full_name||session.user.email||'U').slice(0,2).toUpperCase()}</span><div><b>{profile?.full_name||'ACCOUNT'}</b><small>{profile?.role||'USER'}</small></div></button>{profileOpen&&<ProfileMenu profile={profile} onLogout={async()=>{await signOut();setSession(null);setProfile(null);setProfileOpen(false);setShowCover(true)}}/>}</div></header><div className="content">{content}</div></main><Toast message={toast} onClose={()=>setToast('')}/></div>;
+ return <div className="app"><aside className={`sidebar ${mobile?'open':''}`}><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="live"><i className="pulse"/> LIVE <small>{config.mapTileUrl?'MAP READY':'MAP CONFIG REQUIRED'}</small></div>{company&&<div className="companyAccess"><span>ORGANIZATION</span><b>{company.name||'ORGANIZATION'}</b><small>{moduleAccessLoading?'CHECKING ACCESS':`${moduleCodes.length} MODULE${moduleCodes.length===1?'':'S'} ACTIVE`}</small></div>}<nav>{nav.map(([n,I])=>{const allowed=sectionAllowed(n,moduleCodes);return <button key={n} className={`${section===n?'active':''} ${allowed?'':'locked'}`} onClick={()=>go(n)} title={allowed?'':`Not included in subscription: ${n}`}><I size={17}/><span>{n}</span>{!allowed&&<span className="moduleLock">LOCKED</span>}</button>})}</nav><div className="sideFoot"><ShieldCheck size={16}/><span>SECURE OPERATIONS<br/><b>ROLE CONTROLLED</b></span></div></aside>{mobile&&<button className="mobileBackdrop" onClick={()=>setMobile(false)}/>}<main className="dashboardMain"><header className="topbar"><button className="mobileMenu" onClick={()=>setMobile(v=>!v)}><Menu/></button><div className="crumb">JABS TRACKER <ChevronRight size={14}/><b>{section}</b></div><div className="headerRight"><div className="clock"><Clock3 size={14}/>{new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><button className="iconBtn"><Bell size={18}/>{alerts.length>0&&<i/>}</button><button className="user" onClick={()=>setProfileOpen(v=>!v)}><span>{(profile?.full_name||session.user.email||'U').slice(0,2).toUpperCase()}</span><div><b>{profile?.full_name||'ACCOUNT'}</b><small>{profile?.role||'USER'}</small></div></button>{profileOpen&&<ProfileMenu profile={profile} onLogout={async()=>{await signOut();setSession(null);setProfile(null);setProfileOpen(false);setShowCover(true)}}/>}</div></header><div className="content">{content}</div></main><Toast message={toast} onClose={()=>setToast('')}/></div>;
 }
 
 createRoot(document.getElementById('root')).render(

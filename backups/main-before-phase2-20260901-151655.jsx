@@ -49,13 +49,6 @@ const toCoordinate = (latValue,lngValue) => {
   return [lat,lng];
 };
 
-const haversineM = (la1,lo1,la2,lo2) => {
-  const R=6371000, r=Math.PI/180;
-  const dLa=(la2-la1)*r, dLo=(lo2-lo1)*r;
-  const a=Math.sin(dLa/2)**2+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)**2;
-  return 2*R*Math.asin(Math.min(1,Math.sqrt(a)));
-};
-
 function Toast({message,onClose}) { if(!message)return null; return <div className="toast"><AlertTriangle size={16}/><span>{message}</span><button onClick={onClose}><X size={14}/></button></div>; }
 function Status({children}) { return <span className={`status ${statusTone(children)}`}>{children || 'UNKNOWN'}</span>; }
 function Stat({icon:Icon,label,value,meta,tone='cyan'}) { return <div className="stat"><div className={`statIcon ${tone}`}><Icon size={18}/></div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></div>; }
@@ -137,37 +130,8 @@ function Login({onAuthenticated}) {
   return <main className="authScreen"><div className="authArt"><div className="authGrid"/><div className="authOrb"/></div><div className="authCard"><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="authTitle"><span>SECURE OPERATIONS</span><h1>{mode==='login'?'Welcome back':'Create your account'}</h1><p>{mode==='login'?'Sign in to access your authorized tracking workspace.':'Create an account to begin your secured workspace.'}</p></div><form onSubmit={submit}>{mode==='register'&&<label>FULL NAME<input value={name} onChange={e=>setName(e.target.value)} required/></label>}<label>EMAIL<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="email"/></label><label>PASSWORD<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6} autoComplete={mode==='login'?'current-password':'new-password'}/></label>{error&&<div className="formError"><AlertTriangle size={15}/>{error}</div>}<button className="primary wide" disabled={busy}>{busy?'AUTHENTICATING…':mode==='login'?'SIGN IN':'CREATE ACCOUNT'} <ArrowRight size={16}/></button></form><button className="switchAuth" onClick={()=>{setMode(v=>v==='login'?'register':'login');setError('')}}>{mode==='login'?<><UserPlus size={15}/> Create an account</>:<><LockKeyhole size={15}/> Return to sign in</>}</button><div className="authNote"><ShieldCheck size={15}/> Access is controlled by Supabase authentication and database policies.</div></div></main>;
 }
 
-const markerState=a=>{
-  const s=String(a.status||'').toUpperCase();
-  if(s==='OFFLINE') return 'offline';
-  if(a.last_updated){
-    const age=(Date.now()-new Date(a.last_updated).getTime())/60000;
-    if(Number.isFinite(age)){
-      if(age>=120) return 'offline';
-      if(age>=30) return 'stale';
-    }
-  }
-  if(['MOVING','IN_TRANSIT','TRANSIT'].includes(s)) return 'moving';
-  if(['STOPPED','PARKED'].includes(s)) return 'stopped';
-  return 'idle';
-};
-
-const markerHtml=(a,isSel)=>`<div class="assetMarker ${markerState(a)}${isSel?' selected':''}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;
-
-function LeafletMap({assets,selected,onSelect,trail=[],geofences=[]}) {
-  const ref=useRef(null), map=useRef(null), markers=useRef(new Map()), trailLayer=useRef(null), geoLayer=useRef(null), prevSel=useRef(null);
-  useEffect(()=>{
-    const onResize=()=>{ try{ map.current?.invalidateSize(); }catch{} };
-    window.addEventListener('resize',onResize);
-    return ()=>{
-      window.removeEventListener('resize',onResize);
-      try{ map.current?.remove(); }catch{}
-      map.current=null;
-      markers.current.clear();
-      trailLayer.current=null;
-      geoLayer.current=null;
-    };
-  },[]);
+function LeafletMap({assets,selected,onSelect,trail=[]}) {
+  const ref=useRef(null), map=useRef(null), markers=useRef(new Map()), trailLayer=useRef(null);
   useEffect(()=>{
     if(!window.L || !ref.current) return;
     if(!map.current){
@@ -185,25 +149,32 @@ function LeafletMap({assets,selected,onSelect,trail=[],geofences=[]}) {
       const key=a.id;
       let marker=m.get(key);
 
-      const isSel=!!selected&&a.id===selected.id;
-      const html=markerHtml(a,isSel);
-      const icon=window.L.divIcon({className:'',html,iconSize:[34,34],iconAnchor:[17,17]});
-      const tip=`<b>${a.identifier || a.name || 'ASSET'}</b><br/>${a.asset_type || 'ASSET'} · ${markerState(a).toUpperCase()}`;
+      const html=`<div class="assetMarker ${String(a.status).toLowerCase()}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;
 
       if(!marker){
         marker=window.L.marker(
           window.L.latLng(point[0],point[1]),
-          {icon,zIndexOffset:isSel?1000:0}
+          {
+            icon:window.L.divIcon({
+              className:'',
+              html,
+              iconSize:[34,34],
+              iconAnchor:[17,17]
+            })
+          }
         ).addTo(map.current);
 
-        marker.bindTooltip(tip,{direction:'top',offset:[0,-18],opacity:.94});
+        marker.bindTooltip(
+          `<b>${a.identifier || a.name || 'ASSET'}</b><br/>${a.asset_type || 'ASSET'} · ${a.status || 'UNKNOWN'}`,
+          {direction:'top',offset:[0,-18],opacity:.94}
+        );
+
         marker.on('click',()=>onSelect(a));
         m.set(key,marker);
       }else{
-        marker.setLatLng(window.L.latLng(point[0],point[1]));
-        marker.setIcon(icon);
-        marker.setZIndexOffset(isSel?1000:0);
-        if(marker.getTooltip()) marker.setTooltipContent(tip);
+        marker.setLatLng(
+          window.L.latLng(point[0],point[1])
+        );
       }
     });
 
@@ -223,13 +194,11 @@ function LeafletMap({assets,selected,onSelect,trail=[],geofences=[]}) {
       :null;
 
     if(selectedPoint){
-      if(selected?.id!==prevSel.current){
-        map.current.flyTo(
-          window.L.latLng(selectedPoint[0],selectedPoint[1]),
-          13,
-          {duration:.7}
-        );
-      }
+      map.current.flyTo(
+        window.L.latLng(selectedPoint[0],selectedPoint[1]),
+        13,
+        {duration:.7}
+      );
     }else if(positionedAssets.length>1){
       const bounds=window.L.latLngBounds(
         positionedAssets.map(point=>
@@ -255,8 +224,6 @@ function LeafletMap({assets,selected,onSelect,trail=[],geofences=[]}) {
       );
     }
 
-    prevSel.current=selected?.id??null;
-
     if(trailLayer.current) {
       trailLayer.current.remove();
       trailLayer.current=null;
@@ -277,38 +244,16 @@ function LeafletMap({assets,selected,onSelect,trail=[],geofences=[]}) {
       ).addTo(map.current);
     }
 
-    if(geoLayer.current){ geoLayer.current.remove(); geoLayer.current=null; }
-    const zones=(geofences||[]).filter(g=>g.active&&toCoordinate(g.latitude,g.longitude)&&Number(g.radius_m)>0);
-    if(zones.length){
-      geoLayer.current=window.L.layerGroup();
-      zones.forEach(g=>{
-        const c=toCoordinate(g.latitude,g.longitude);
-        window.L.circle(c,{radius:Number(g.radius_m),color:'#9f7cff',weight:1.5,opacity:.7,fillColor:'#9f7cff',fillOpacity:.06})
-          .bindTooltip(`<b>${g.name||'Safe zone'}</b><br/>${(g.type||'CUSTOM')} · ${Number(g.radius_m).toLocaleString()} m`,{opacity:.94})
-          .addTo(geoLayer.current);
-      });
-      geoLayer.current.addTo(map.current);
-    }
-
     setTimeout(()=>map.current?.invalidateSize(),100);
-  },[assets,selected,trail,onSelect,geofences]);
+  },[assets,selected,trail,onSelect]);
   return <div className="leafletMap" ref={ref}>{!window.L&&<div className="mapProviderError">Map library unavailable</div>}</div>;
 }
 
-function LiveMap({assets,selected,setSelected,trail,geofences=[]}) { return <div className="mapPanel"><div className="panelHead"><div><b>LIVE ASSET MAP</b><small>{assets.length} tracked assets · realtime feed</small></div><div className="mapTools"><span className="liveBadge"><i className="pulse"/> LIVE</span></div></div><LeafletMap assets={assets} selected={selected} onSelect={setSelected} trail={trail} geofences={geofences}/><div className="mapLegend"><span><i className="goodDot"/> Moving</span><span><i className="warnDot"/> Idle / Stopped</span><span><i className="dangerDot"/> Stale / Offline</span><span><i className="zoneDotLegend"/> Safe zone</span></div></div> }
+function LiveMap({assets,selected,setSelected,trail}) { return <div className="mapPanel"><div className="panelHead"><div><b>LIVE ASSET MAP</b><small>{assets.length} tracked assets · realtime feed</small></div><div className="mapTools"><span className="liveBadge"><i className="pulse"/> LIVE</span></div></div><LeafletMap assets={assets} selected={selected} onSelect={setSelected} trail={trail}/><div className="mapLegend"><span><i className="goodDot"/> Moving</span><span><i className="warnDot"/> Idle</span><span><i className="dangerDot"/> Offline / Exception</span></div></div> }
 
 function AssetDrawer({asset,onClose,trail}){if(!asset)return null;const Icon=iconFor(asset.asset_type);return <aside className="assetDrawer"><div className="drawerHead"><div><span className="assetIcon"><Icon size={17}/></span><div><b>{asset.identifier||asset.name}</b><small>{asset.name||asset.asset_type}</small></div></div><button onClick={onClose}><X/></button></div><div className="drawerStatus"><Status>{asset.status}</Status><span>Updated {asset.last_updated?new Date(asset.last_updated).toLocaleString():'—'}</span></div><div className="metricGrid"><div><small>SPEED</small><b>{asset.speed??0} km/h</b></div><div><small>HEADING</small><b>{asset.heading??0}°</b></div><div><small>LATITUDE</small><b>{toCoordinate(asset.latitude,asset.longitude)?.[0]?.toFixed(5) ?? '—'}</b></div><div><small>LONGITUDE</small><b>{toCoordinate(asset.latitude,asset.longitude)?.[1]?.toFixed(5) ?? '—'}</b></div></div><div className="drawerSection"><b>TRIP CONTEXT</b><p>{asset.current_trip_id||'No active trip linked'}</p></div><div className="drawerSection"><b>RECENT TRAIL</b><p>{trail.length} location points loaded for the selected window.</p></div><button className="outline wide"><History size={15}/> Open movement history</button></aside>}
 
-function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh,geofences=[]}) {
-  const activeZones=geofences.filter(g=>g.active);
-  const zoneInsideCount=g=>{
-    const gp=toCoordinate(g.latitude,g.longitude);
-    if(!gp)return 0;
-    return assets.filter(a=>{
-      const p=toCoordinate(a.latitude,a.longitude);
-      return p && haversineM(p[0],p[1],gp[0],gp[1])<=Number(g.radius_m||0);
-    }).length;
-  };
+function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh}) {
   const moving=assets.filter(a=>['MOVING','IN_TRANSIT','TRANSIT'].includes(String(a.status).toUpperCase())).length;
   const offline=assets.filter(a=>String(a.status).toUpperCase()==='OFFLINE').length;
   const ships=assets.filter(a=>a.asset_type==='SHIP').length;
@@ -370,7 +315,6 @@ function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh,g
         selected={selected}
         setSelected={setSelected}
         trail={trail}
-        geofences={geofences}
       />
 
       <div className="sideStack">
@@ -445,34 +389,6 @@ function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh,g
           {!alerts.length &&
             <Empty text="No unresolved alerts."/>
           }
-        </div>
-
-        <div className="panel">
-          <div className="panelHead">
-            <div>
-              <b>SAFE ZONES</b>
-              <small>{activeZones.length} active organization zone{activeZones.length===1?'':'s'}</small>
-            </div>
-            <MapPin size={16}/>
-          </div>
-          <div className="safeZoneList">
-            {activeZones.slice(0,6).map(g=>{
-              const inside=zoneInsideCount(g);
-              return (
-                <div className="zoneRow" key={g.id}>
-                  <span className="zoneIcon"><MapPin size={15}/></span>
-                  <span>
-                    <b>{g.name||'Unnamed zone'}</b>
-                    <small>{(g.type||'CUSTOM').replaceAll('_',' ')} · {Number(g.radius_m||0).toLocaleString()} m</small>
-                  </span>
-                  <span className="zoneInside">{inside} inside</span>
-                </div>
-              );
-            })}
-            {!activeZones.length &&
-              <Empty text="No active safe zones configured."/>
-            }
-          </div>
         </div>
 
       </div>
@@ -893,8 +809,8 @@ function Billing(){
 }
 function ProfileMenu({profile,onLogout}){return <div className="profileMenu"><div className="profileTop"><CircleUserRound size={20}/><div><b>{profile?.full_name||'Authenticated User'}</b><small>{profile?.role||'USER'}</small></div></div><button onClick={onLogout}><LogOut size={15}/> Sign out securely</button></div>}
 
-function App(){const [session,setSession]=useState(null),[showCover,setShowCover]=useState(true),[profile,setProfile]=useState(null),[section,setSection]=useState('COMMAND CENTER'),[assets,setAssets]=useState([]),[alerts,setAlerts]=useState([]),[geofences,setGeofences]=useState([]),[trips,setTrips]=useState([]),[selected,setSelected]=useState(null),[trail,setTrail]=useState([]),[mobile,setMobile]=useState(false),[profileOpen,setProfileOpen]=useState(false),[toast,setToast]=useState(''),[moduleCodes,setModuleCodes]=useState([]),[company,setCompany]=useState(null),[moduleAccessLoading,setModuleAccessLoading]=useState(true),[moduleAccessError,setModuleAccessError]=useState(''),[loading,setLoading]=useState(true);
- const refresh=async()=>{const [a,al,t,g]=await Promise.all([loadAssets(),loadAlerts(),loadTrips(),loadGeofences()]);if(a.error)setToast(a.error.message);setAssets(a.data||[]);setAlerts((al.data||[]).filter(x=>!x.acknowledged));setTrips(t.data||[]);setGeofences(g.data||[]);setLoading(false)};
+function App(){const [session,setSession]=useState(null),[showCover,setShowCover]=useState(true),[profile,setProfile]=useState(null),[section,setSection]=useState('COMMAND CENTER'),[assets,setAssets]=useState([]),[alerts,setAlerts]=useState([]),[geofences,setGeofences]=useState([]),[trips,setTrips]=useState([]),[selected,setSelected]=useState(null),[trail,setTrail]=useState([]),[mobile,setMobile]=useState(false),[profileOpen,setProfileOpen]=useState(false),[toast,setToast]=useState(''),[moduleCodes,setModuleCodes]=useState([]),[company,setCompany]=useState(null),[moduleAccessLoading,setModuleAccessLoading]=useState(true),[moduleAccessError,setModuleAccessError]=useState('');
+ const refresh=async()=>{const [a,al,t,g]=await Promise.all([loadAssets(),loadAlerts(),loadTrips(),loadGeofences()]);if(a.error)setToast(a.error.message);setAssets(a.data||[]);setAlerts((al.data||[]).filter(x=>!x.acknowledged));setTrips(t.data||[]);setGeofences(g.data||[])};
  useEffect(()=>{getSession().then(({data})=>setSession(data.session)); if(supabase){const {data}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s));return()=>data.subscription.unsubscribe()}},[]);
 useEffect(()=>{
   let cancelled=false;
@@ -966,8 +882,8 @@ useEffect(()=>{
   setSection(n);
   setMobile(false);
 };
- const content= section==='COMMAND CENTER'?<CommandCenter assets={assets} alerts={alerts} trips={trips} selected={selected} setSelected={setSelected} trail={trail} refresh={refresh} geofences={geofences}/> : section==='PHONE TRACKING'?<PhoneDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail} geofences={geofences} refresh={refresh}/>:section==='ANALYTICS'?<Analytics assets={assets} trips={trips}/>:section==='BILLING'?<Billing/>:section==='FLEET'?<TruckDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='SHIP TRACKING'?<ShipDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ALERTS'?<TablePage title="Alerts" icon={AlertTriangle} rows={alerts} columns={['TITLE','ALERT_TYPE','SEVERITY','MESSAGE','CREATED_AT']}/>:section==='TRIPS'?<TablePage title="Trips" icon={Route} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ETA','CREATED_AT']}/>:section==='REPORTS'?<TablePage title="Reports" icon={Database} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ACTUAL_DISTANCE_KM']}/>:section==='DEVICES'?<TablePage title="Devices" icon={Wifi} rows={assets.filter(a=>a.device_id)} columns={['IDENTIFIER','DEVICE_ID','ASSET_TYPE','STATUS','LAST_UPDATED']}/>:section==='GEOFENCES'?<GeofenceControlCenter geofences={geofences} assets={assets} refresh={refresh}/>:section==='SHIPMENTS'?<TablePage title="Shipments" icon={Package} rows={[]} columns={['SHIPMENT_ID','STATUS','ORIGIN','DESTINATION','ETA']}/>:<div className="page"><div className="pageHero"><div><span>ADMINISTRATION</span><h1>{section}</h1><p>Access-controlled module. Connect the corresponding backend records before enabling mutations.</p></div></div><Empty text="No administrative records are exposed to this role."/></div>;
- return <div className="app"><aside className={`sidebar ${mobile?'open':''}`}><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="live"><i className="pulse"/> LIVE <small>{config.mapTileUrl?'MAP READY':'MAP CONFIG REQUIRED'}</small></div>{company&&<div className="companyAccess"><span>ORGANIZATION</span><b>{company.name||'ORGANIZATION'}</b><small>{moduleAccessLoading?'CHECKING ACCESS':`${moduleCodes.length} MODULE${moduleCodes.length===1?'':'S'} ACTIVE`}</small></div>}<nav>{nav.map(([n,I])=>{const allowed=sectionAllowed(n,moduleCodes);return <button key={n} className={`${section===n?'active':''} ${allowed?'':'locked'}`} onClick={()=>go(n)} title={allowed?'':`Not included in subscription: ${n}`}><I size={17}/><span>{n}</span>{!allowed&&<span className="moduleLock">LOCKED</span>}</button>})}</nav><div className="sideFoot"><ShieldCheck size={16}/><span>SECURE OPERATIONS<br/><b>ROLE CONTROLLED</b></span></div></aside>{mobile&&<button className="mobileBackdrop" onClick={()=>setMobile(false)}/>}<main className="dashboardMain"><header className="topbar"><button className="mobileMenu" onClick={()=>setMobile(v=>!v)}><Menu/></button><div className="crumb">JABS TRACKER <ChevronRight size={14}/><b>{section}</b></div><div className="headerRight"><div className="clock"><Clock3 size={14}/>{new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><button className="iconBtn"><Bell size={18}/>{alerts.length>0&&<i/>}</button><button className="user" onClick={()=>setProfileOpen(v=>!v)}><span>{(profile?.full_name||session.user.email||'U').slice(0,2).toUpperCase()}</span><div><b>{profile?.full_name||'ACCOUNT'}</b><small>{profile?.role||'USER'}</small></div></button>{profileOpen&&<ProfileMenu profile={profile} onLogout={async()=>{await signOut();setSession(null);setProfile(null);setProfileOpen(false);setShowCover(true)}}/>}</div></header><div className="content">{loading?<div className="jabsLoader"><div className="jabsLoaderRing"/><b>JABS TRACKER</b><span>Syncing operational data…</span></div>:content}</div></main><Toast message={toast} onClose={()=>setToast('')}/></div>;
+ const content= section==='COMMAND CENTER'?<CommandCenter assets={assets} alerts={alerts} trips={trips} selected={selected} setSelected={setSelected} trail={trail} refresh={refresh}/> : section==='PHONE TRACKING'?<PhoneDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ANALYTICS'?<Analytics assets={assets} trips={trips}/>:section==='BILLING'?<Billing/>:section==='FLEET'?<TruckDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='SHIP TRACKING'?<ShipDashboard assets={assets} selected={selected} setSelected={setSelected} trail={trail}/>:section==='ALERTS'?<TablePage title="Alerts" icon={AlertTriangle} rows={alerts} columns={['TITLE','ALERT_TYPE','SEVERITY','MESSAGE','CREATED_AT']}/>:section==='TRIPS'?<TablePage title="Trips" icon={Route} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ETA','CREATED_AT']}/>:section==='REPORTS'?<TablePage title="Reports" icon={Database} rows={trips} columns={['TRIP_NUMBER','STATUS','ORIGIN','DESTINATION','ACTUAL_DISTANCE_KM']}/>:section==='DEVICES'?<TablePage title="Devices" icon={Wifi} rows={assets.filter(a=>a.device_id)} columns={['IDENTIFIER','DEVICE_ID','ASSET_TYPE','STATUS','LAST_UPDATED']}/>:section==='GEOFENCES'?<GeofenceControlCenter geofences={geofences} assets={assets} refresh={refresh}/>:section==='SHIPMENTS'?<TablePage title="Shipments" icon={Package} rows={[]} columns={['SHIPMENT_ID','STATUS','ORIGIN','DESTINATION','ETA']}/>:<div className="page"><div className="pageHero"><div><span>ADMINISTRATION</span><h1>{section}</h1><p>Access-controlled module. Connect the corresponding backend records before enabling mutations.</p></div></div><Empty text="No administrative records are exposed to this role."/></div>;
+ return <div className="app"><aside className={`sidebar ${mobile?'open':''}`}><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="live"><i className="pulse"/> LIVE <small>{config.mapTileUrl?'MAP READY':'MAP CONFIG REQUIRED'}</small></div>{company&&<div className="companyAccess"><span>ORGANIZATION</span><b>{company.name||'ORGANIZATION'}</b><small>{moduleAccessLoading?'CHECKING ACCESS':`${moduleCodes.length} MODULE${moduleCodes.length===1?'':'S'} ACTIVE`}</small></div>}<nav>{nav.map(([n,I])=>{const allowed=sectionAllowed(n,moduleCodes);return <button key={n} className={`${section===n?'active':''} ${allowed?'':'locked'}`} onClick={()=>go(n)} title={allowed?'':`Not included in subscription: ${n}`}><I size={17}/><span>{n}</span>{!allowed&&<span className="moduleLock">LOCKED</span>}</button>})}</nav><div className="sideFoot"><ShieldCheck size={16}/><span>SECURE OPERATIONS<br/><b>ROLE CONTROLLED</b></span></div></aside>{mobile&&<button className="mobileBackdrop" onClick={()=>setMobile(false)}/>}<main className="dashboardMain"><header className="topbar"><button className="mobileMenu" onClick={()=>setMobile(v=>!v)}><Menu/></button><div className="crumb">JABS TRACKER <ChevronRight size={14}/><b>{section}</b></div><div className="headerRight"><div className="clock"><Clock3 size={14}/>{new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><button className="iconBtn"><Bell size={18}/>{alerts.length>0&&<i/>}</button><button className="user" onClick={()=>setProfileOpen(v=>!v)}><span>{(profile?.full_name||session.user.email||'U').slice(0,2).toUpperCase()}</span><div><b>{profile?.full_name||'ACCOUNT'}</b><small>{profile?.role||'USER'}</small></div></button>{profileOpen&&<ProfileMenu profile={profile} onLogout={async()=>{await signOut();setSession(null);setProfile(null);setProfileOpen(false);setShowCover(true)}}/>}</div></header><div className="content">{content}</div></main><Toast message={toast} onClose={()=>setToast('')}/></div>;
 }
 
 createRoot(document.getElementById('root')).render(

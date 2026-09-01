@@ -12,3 +12,9 @@ node_modules/
 dist/
 .vercel
 .env*
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials

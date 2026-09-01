@@ -439,7 +439,8 @@ export default function PhoneDashboard({
   trail=[],
   selected,
   setSelected,
-  geofences=[]
+  geofences=[],
+  refresh
 }){
 
   const phones=assets.filter(
@@ -458,6 +459,9 @@ export default function PhoneDashboard({
   const [watchId,setWatchId]=useState(null);
   const [lastSample,setLastSample]=useState(null);
   const sentCount=useRef(0);
+  const [sent,setSent]=useState(0);
+  const [txError,setTxError]=useState('');
+  const lastRefresh=useRef(0);
 
   useEffect(()=>{
 
@@ -466,6 +470,8 @@ export default function PhoneDashboard({
     setMessage('');
     setLastSample(null);
     sentCount.current=0;
+    setSent(0);
+    setTxError('');
 
   },[phone?.id]);
 
@@ -504,6 +510,11 @@ export default function PhoneDashboard({
   const insideZones=zoneStatus.filter(z=>z.inside);
 
   const startTracking=()=>{
+
+    if(watchId!==null){
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
+    }
 
     if(!phone){
 
@@ -591,13 +602,22 @@ export default function PhoneDashboard({
         }
 
         sentCount.current+=1;
+        setSent(sentCount.current);
+        setTxError('');
 
         setMessage(
           `Live location transmitted · ${sentCount.current} sent · ${new Date().toLocaleTimeString()}`
         );
 
+        const nowTs=Date.now();
+        if(refresh&&nowTs-lastRefresh.current>8000){
+          lastRefresh.current=nowTs;
+          Promise.resolve(refresh()).catch(()=>{});
+        }
+
       })
       .catch(error=>{
+        setTxError(error.message);
         setMessage(error.message);
       });
 
@@ -1231,6 +1251,24 @@ export default function PhoneDashboard({
             <Radio size={18}/>
 
           </div>
+
+          {tracking&&(
+            <div className="phoneLiveSession">
+              <div className="phoneLiveSessionTop">
+                <span className="phoneLiveDot"/>
+                <b>LIVE SESSION ACTIVE</b>
+                <span className="phoneLiveTx">{sent} sent</span>
+              </div>
+              <div className="phoneLiveGrid">
+                <div><span>LATITUDE</span><b>{lastSample?fmt(lastSample.latitude):'…'}</b></div>
+                <div><span>LONGITUDE</span><b>{lastSample?fmt(lastSample.longitude):'…'}</b></div>
+                <div><span>ACCURACY</span><b>{lastSample?.accuracy!=null?`±${fmt(lastSample.accuracy)} m`:'…'}</b></div>
+                <div><span>MOVEMENT</span><b>{lastSample?(Number(lastSample.speed)>0?'MOVING':'STATIONARY'):'…'}</b></div>
+                <div><span>LAST TX</span><b>{lastSample?new Date(lastSample.timestamp).toLocaleTimeString():'…'}</b></div>
+                <div><span>TELEMETRY</span><b className={txError?'txErr':'txOk'}>{txError?'REJECTED':sent>0?'FLOWING':'ACQUIRING GPS'}</b></div>
+              </div>
+            </div>
+          )}
 
           <div className="phoneControls">
 

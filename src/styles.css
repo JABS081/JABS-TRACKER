@@ -764,3 +764,40 @@ nav button{transition:background .18s ease,color .18s ease,box-shadow .18s ease}
   font-size:7px;letter-spacing:.06em;padding:5px 7px;border-radius:6px;white-space:nowrap;
   border:1px solid rgba(159,124,255,.32);background:rgba(159,124,255,.08);color:#c6b4ff;
 }
+
+/* =========================================================
+   PHASE C — FLEET / TRUCK: overview KPIs + fleet roster
+   ========================================================= */
+.fleetOverview{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+.fleetStat{background:#07131d;border:1px solid #112d3a;border-radius:12px;padding:14px 15px;transition:border-color .25s ease,box-shadow .25s ease}
+.fleetStat:hover{border-color:rgba(67,217,255,.24)}
+.fleetStat span{display:block;font-size:8px;letter-spacing:.13em;color:#718b97}
+.fleetStat strong{display:block;font-size:26px;margin-top:6px;color:#e9f4f8;line-height:1}
+.fleetStat.moving strong{color:var(--green)}
+.fleetStat.idle strong{color:var(--warn)}
+.fleetStat.offline strong{color:var(--danger)}
+.fleetStat.attention{border-color:rgba(255,184,77,.28)}
+.fleetStat.attention strong{color:var(--warn)}
+
+.fleetRoster{display:flex;gap:9px;overflow-x:auto;padding-bottom:6px;margin-bottom:16px;-webkit-overflow-scrolling:touch}
+.fleetRoster::-webkit-scrollbar{height:6px}
+.fleetRoster::-webkit-scrollbar-thumb{background:#153240;border-radius:6px}
+.fleetRosterItem{flex:0 0 auto;min-width:172px;display:grid;grid-template-columns:12px 1fr 16px;gap:9px;align-items:center;padding:11px 13px;border-radius:11px;background:#07131d;border:1px solid #112d3a;color:#9db3bd;transition:border-color .2s ease,background .2s ease,box-shadow .2s ease}
+.fleetRosterItem:hover{background:#0b202b}
+.fleetRosterItem.selected{border-color:rgba(67,217,255,.6);background:rgba(15,52,68,.55);box-shadow:0 0 22px rgba(67,217,255,.10);color:#eaf8fc}
+.fleetRosterItem b,.fleetRosterItem small{display:block;text-align:left}
+.fleetRosterItem b{font-size:10px;letter-spacing:.06em}
+.fleetRosterItem small{font-size:7px;color:#63808c;margin-top:3px;letter-spacing:.08em}
+.fleetRosterItem svg{color:#5f7e8b}
+.fleetRosterItem.selected svg{color:var(--cyan)}
+.fleetRosterDot{width:10px;height:10px;border-radius:50%;background:#5d7b89}
+.fleetRosterItem.moving .fleetRosterDot{background:var(--green);box-shadow:0 0 10px rgba(53,224,154,.6)}
+.fleetRosterItem.stopped .fleetRosterDot,.fleetRosterItem.idle .fleetRosterDot{background:var(--warn)}
+.fleetRosterItem.stale .fleetRosterDot{background:var(--warn);box-shadow:0 0 9px rgba(255,184,77,.5)}
+.fleetRosterItem.offline .fleetRosterDot{background:var(--danger)}
+
+.truckDeviceId{margin:12px 15px 2px;font-size:8px;letter-spacing:.08em;color:#6b8793;display:flex;gap:7px;align-items:center}
+
+@media(max-width:1000px){.fleetOverview{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){.fleetOverview{grid-template-columns:repeat(2,1fr)}.fleetStat strong{font-size:22px}.fleetRosterItem{min-width:150px}}
+

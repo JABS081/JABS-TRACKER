@@ -5,6 +5,20 @@ import {config} from '../lib/config';
 const tone=s=>({ACTIVE:'good',MOVING:'good',IN_TRANSIT:'info',TRANSIT:'info',IDLE:'warn',STOPPED:'warn',OFFLINE:'danger',DELAYED:'danger'}[String(s||'').toUpperCase()]||'info');
 const n=v=>Number.isFinite(Number(v))?Number(v):null;
 const fmt=v=>v==null?'—':Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
+const assetOpState=a=>{
+ const s=String(a?.status||'').toUpperCase();
+ if(s==='OFFLINE')return 'offline';
+ if(a?.last_updated){
+   const age=(Date.now()-new Date(a.last_updated).getTime())/60000;
+   if(Number.isFinite(age)){
+     if(age>=120)return 'offline';
+     if(age>=30)return 'stale';
+   }
+ }
+ if(Number(a?.speed)>0||['MOVING','IN_TRANSIT','TRANSIT'].includes(s))return 'moving';
+ if(['STOPPED','PARKED'].includes(s))return 'stopped';
+ return 'idle';
+};
 
 function Metric({icon:Icon,label,value,meta}){return <div className="assetMetric"><div className="assetMetricIcon"><Icon size={17}/></div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></div>}
 function EmptyAsset({icon:Icon,title,text}){return <div className="assetEmpty"><Icon size={34}/><h3>{title}</h3><p>{text}</p></div>}
@@ -66,7 +80,7 @@ function Telemetry({asset}){
  </section>
 }
 function MiniMap({asset,trail=[],mode='road',playbackIndex=null,playing=false,playbackSpeed=1}){
- const ref=useRef(null),map=useRef(null),marker=useRef(null),line=useRef(null),playedLine=useRef(null);
+ const ref=useRef(null),map=useRef(null),marker=useRef(null),line=useRef(null),playedLine=useRef(null),prevAssetId=useRef(null);
  const [ready,setReady]=useState(false);
 
  const points=trail
@@ -172,15 +186,20 @@ function MiniMap({asset,trail=[],mode='road',playbackIndex=null,playing=false,pl
      }
    }
 
-   if(playing){
-     map.current.panTo([lat,lng],{animate:true,duration:.45});
-   }else{
+   const assetChanged=asset.id!==prevAssetId.current;
+   const isPlaybackMap=playbackIndex!=null;
+
+   if(playing||(isPlaybackMap&&!assetChanged)){
+     map.current.panTo([lat,lng],{animate:true,duration:.4});
+   }else if(assetChanged){
      map.current.flyTo(
        [lat,lng],
        Math.max(map.current.getZoom(),11),
        {duration:.35}
      );
    }
+
+   prevAssetId.current=asset.id;
 
    setTimeout(()=>map.current?.invalidateSize(),80);
 
@@ -484,6 +503,12 @@ export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
  signal=ageMinutes==null?'UNKNOWN':ageMinutes<5?'LIVE':ageMinutes<30?'RECENT':'STALE',
  movement=speed>0?'MOVING':String(a?.status||'').toUpperCase()==='ACTIVE'?'ACTIVE':'STATIONARY';
 
+ const fleet=rows.map(t=>({t,state:assetOpState(t),hasFix:n(t.latitude)!=null&&n(t.longitude)!=null}));
+ const movingCount=fleet.filter(f=>f.state==='moving').length;
+ const idleCount=fleet.filter(f=>f.state==='stopped'||f.state==='idle').length;
+ const staleOfflineCount=fleet.filter(f=>f.state==='stale'||f.state==='offline').length;
+ const attentionCount=fleet.filter(f=>f.state==='stale'||f.state==='offline'||!f.hasFix).length;
+
  return <Shell
    eyebrow="FLEET CONTROL / TRUCK OPERATIONS"
    title="Truck Command"
@@ -500,6 +525,31 @@ export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
    />
  :
  <>
+   <div className="fleetOverview">
+     <div className="fleetStat"><span>TOTAL TRUCKS</span><strong>{rows.length}</strong></div>
+     <div className="fleetStat moving"><span>MOVING</span><strong>{movingCount}</strong></div>
+     <div className="fleetStat idle"><span>STOPPED / IDLE</span><strong>{idleCount}</strong></div>
+     <div className="fleetStat offline"><span>STALE / OFFLINE</span><strong>{staleOfflineCount}</strong></div>
+     <div className="fleetStat attention"><span>ATTENTION</span><strong>{attentionCount}</strong></div>
+   </div>
+
+   <div className="fleetRoster">
+     {fleet.map(({t,state,hasFix})=>
+       <button
+         key={t.id}
+         className={`fleetRosterItem ${state}${t.id===a.id?' selected':''}`}
+         onClick={()=>setSelected?.(t)}
+       >
+         <span className="fleetRosterDot"/>
+         <span className="fleetRosterId">
+           <b>{t.identifier||t.name||'TRUCK'}</b>
+           <small>{state.toUpperCase()}{hasFix?'':' · NO FIX'}</small>
+         </span>
+         <Truck size={14}/>
+       </button>
+     )}
+   </div>
+
    <div className="truckCommandBanner">
      <div className="truckIdentity">
        <div className="truckIdentityIcon"><Truck size={25}/></div>
@@ -621,6 +671,7 @@ export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
              <i><em style={{width:a.device_id?'88%':'20%'}}/></i>
            </div>
          </div>
+         {a.device_id&&<div className="truckDeviceId"><Wifi size={12}/> Authorized device {String(a.device_id).slice(0,8)}…</div>}
        </section>
 
        <section className="assetCard truckTripCard">
@@ -727,7 +778,9 @@ export function TruckDashboard({assets=[],trail=[],selected,setSelected}){
 
    </div>
 
-   <MovementHistory trail={trail} asset={a}/>\n\n<section className="truckCommandActions">
+   <MovementHistory trail={trail} asset={a}/>
+
+  <section className="truckCommandActions">
      <div>
        <span>OPERATIONAL CONTROLS</span>
        <b>{a.identifier||a.name||'Vehicle'} command actions</b>

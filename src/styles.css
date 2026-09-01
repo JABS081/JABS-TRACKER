@@ -699,6 +699,17 @@
 
 
 /* =========================================================
+   PHASE B — LIVE MAP marker states + selection + safe zones
+   ========================================================= */
+.assetMarker.moving{border-color:var(--green);color:#c9ffe7;box-shadow:0 0 22px rgba(53,224,154,.4)}
+.assetMarker.stale{border-color:var(--warn);color:#ffe2a8;box-shadow:0 0 22px rgba(255,184,77,.35)}
+.assetMarker.selected{position:relative;box-shadow:0 0 0 4px rgba(67,217,255,.30),0 0 26px rgba(67,217,255,.55)}
+.assetMarker.selected:after{content:"";position:absolute;inset:-9px;border-radius:50%;border:2px solid rgba(67,217,255,.55);animation:jabsMarkerPulse 1.6s ease-out infinite}
+@keyframes jabsMarkerPulse{0%{transform:scale(.75);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+.zoneDotLegend{width:9px;height:9px;border-radius:50%;display:inline-block;background:rgba(159,124,255,.25);border:1.5px solid #9f7cff}
+
+
+/* =========================================================
    JABS TRACKER — PHASE 2 PREMIUM POLISH
    (cover legibility on mobile, micro-interactions, loader,
     unified Command Center safe-zone panel)

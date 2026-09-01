@@ -137,8 +137,37 @@ function Login({onAuthenticated}) {
   return <main className="authScreen"><div className="authArt"><div className="authGrid"/><div className="authOrb"/></div><div className="authCard"><div className="brand"><div className="logo"><Radio size={22}/></div><div><b>JABS</b><span>TRACKER</span></div></div><div className="authTitle"><span>SECURE OPERATIONS</span><h1>{mode==='login'?'Welcome back':'Create your account'}</h1><p>{mode==='login'?'Sign in to access your authorized tracking workspace.':'Create an account to begin your secured workspace.'}</p></div><form onSubmit={submit}>{mode==='register'&&<label>FULL NAME<input value={name} onChange={e=>setName(e.target.value)} required/></label>}<label>EMAIL<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="email"/></label><label>PASSWORD<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6} autoComplete={mode==='login'?'current-password':'new-password'}/></label>{error&&<div className="formError"><AlertTriangle size={15}/>{error}</div>}<button className="primary wide" disabled={busy}>{busy?'AUTHENTICATING…':mode==='login'?'SIGN IN':'CREATE ACCOUNT'} <ArrowRight size={16}/></button></form><button className="switchAuth" onClick={()=>{setMode(v=>v==='login'?'register':'login');setError('')}}>{mode==='login'?<><UserPlus size={15}/> Create an account</>:<><LockKeyhole size={15}/> Return to sign in</>}</button><div className="authNote"><ShieldCheck size={15}/> Access is controlled by Supabase authentication and database policies.</div></div></main>;
 }
 
-function LeafletMap({assets,selected,onSelect,trail=[]}) {
-  const ref=useRef(null), map=useRef(null), markers=useRef(new Map()), trailLayer=useRef(null);
+const markerState=a=>{
+  const s=String(a.status||'').toUpperCase();
+  if(s==='OFFLINE') return 'offline';
+  if(a.last_updated){
+    const age=(Date.now()-new Date(a.last_updated).getTime())/60000;
+    if(Number.isFinite(age)){
+      if(age>=120) return 'offline';
+      if(age>=30) return 'stale';
+    }
+  }
+  if(['MOVING','IN_TRANSIT','TRANSIT'].includes(s)) return 'moving';
+  if(['STOPPED','PARKED'].includes(s)) return 'stopped';
+  return 'idle';
+};
+
+const markerHtml=(a,isSel)=>`<div class="assetMarker ${markerState(a)}${isSel?' selected':''}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;
+
+function LeafletMap({assets,selected,onSelect,trail=[],geofences=[]}) {
+  const ref=useRef(null), map=useRef(null), markers=useRef(new Map()), trailLayer=useRef(null), geoLayer=useRef(null), prevSel=useRef(null);
+  useEffect(()=>{
+    const onResize=()=>{ try{ map.current?.invalidateSize(); }catch{} };
+    window.addEventListener('resize',onResize);
+    return ()=>{
+      window.removeEventListener('resize',onResize);
+      try{ map.current?.remove(); }catch{}
+      map.current=null;
+      markers.current.clear();
+      trailLayer.current=null;
+      geoLayer.current=null;
+    };
+  },[]);
   useEffect(()=>{
     if(!window.L || !ref.current) return;
     if(!map.current){
@@ -156,32 +185,25 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
       const key=a.id;
       let marker=m.get(key);
 
-      const html=`<div class="assetMarker ${String(a.status).toLowerCase()}"><span>${a.asset_type==='SHIP'?'⚓':a.asset_type==='PHONE'?'⌁':'▴'}</span></div>`;
+      const isSel=!!selected&&a.id===selected.id;
+      const html=markerHtml(a,isSel);
+      const icon=window.L.divIcon({className:'',html,iconSize:[34,34],iconAnchor:[17,17]});
+      const tip=`<b>${a.identifier || a.name || 'ASSET'}</b><br/>${a.asset_type || 'ASSET'} · ${markerState(a).toUpperCase()}`;
 
       if(!marker){
         marker=window.L.marker(
           window.L.latLng(point[0],point[1]),
-          {
-            icon:window.L.divIcon({
-              className:'',
-              html,
-              iconSize:[34,34],
-              iconAnchor:[17,17]
-            })
-          }
+          {icon,zIndexOffset:isSel?1000:0}
         ).addTo(map.current);
 
-        marker.bindTooltip(
-          `<b>${a.identifier || a.name || 'ASSET'}</b><br/>${a.asset_type || 'ASSET'} · ${a.status || 'UNKNOWN'}`,
-          {direction:'top',offset:[0,-18],opacity:.94}
-        );
-
+        marker.bindTooltip(tip,{direction:'top',offset:[0,-18],opacity:.94});
         marker.on('click',()=>onSelect(a));
         m.set(key,marker);
       }else{
-        marker.setLatLng(
-          window.L.latLng(point[0],point[1])
-        );
+        marker.setLatLng(window.L.latLng(point[0],point[1]));
+        marker.setIcon(icon);
+        marker.setZIndexOffset(isSel?1000:0);
+        if(marker.getTooltip()) marker.setTooltipContent(tip);
       }
     });
 
@@ -201,11 +223,13 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
       :null;
 
     if(selectedPoint){
-      map.current.flyTo(
-        window.L.latLng(selectedPoint[0],selectedPoint[1]),
-        13,
-        {duration:.7}
-      );
+      if(selected?.id!==prevSel.current){
+        map.current.flyTo(
+          window.L.latLng(selectedPoint[0],selectedPoint[1]),
+          13,
+          {duration:.7}
+        );
+      }
     }else if(positionedAssets.length>1){
       const bounds=window.L.latLngBounds(
         positionedAssets.map(point=>
@@ -231,6 +255,8 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
       );
     }
 
+    prevSel.current=selected?.id??null;
+
     if(trailLayer.current) {
       trailLayer.current.remove();
       trailLayer.current=null;
@@ -251,12 +277,25 @@ function LeafletMap({assets,selected,onSelect,trail=[]}) {
       ).addTo(map.current);
     }
 
+    if(geoLayer.current){ geoLayer.current.remove(); geoLayer.current=null; }
+    const zones=(geofences||[]).filter(g=>g.active&&toCoordinate(g.latitude,g.longitude)&&Number(g.radius_m)>0);
+    if(zones.length){
+      geoLayer.current=window.L.layerGroup();
+      zones.forEach(g=>{
+        const c=toCoordinate(g.latitude,g.longitude);
+        window.L.circle(c,{radius:Number(g.radius_m),color:'#9f7cff',weight:1.5,opacity:.7,fillColor:'#9f7cff',fillOpacity:.06})
+          .bindTooltip(`<b>${g.name||'Safe zone'}</b><br/>${(g.type||'CUSTOM')} · ${Number(g.radius_m).toLocaleString()} m`,{opacity:.94})
+          .addTo(geoLayer.current);
+      });
+      geoLayer.current.addTo(map.current);
+    }
+
     setTimeout(()=>map.current?.invalidateSize(),100);
-  },[assets,selected,trail,onSelect]);
+  },[assets,selected,trail,onSelect,geofences]);
   return <div className="leafletMap" ref={ref}>{!window.L&&<div className="mapProviderError">Map library unavailable</div>}</div>;
 }
 
-function LiveMap({assets,selected,setSelected,trail}) { return <div className="mapPanel"><div className="panelHead"><div><b>LIVE ASSET MAP</b><small>{assets.length} tracked assets · realtime feed</small></div><div className="mapTools"><span className="liveBadge"><i className="pulse"/> LIVE</span></div></div><LeafletMap assets={assets} selected={selected} onSelect={setSelected} trail={trail}/><div className="mapLegend"><span><i className="goodDot"/> Moving</span><span><i className="warnDot"/> Idle</span><span><i className="dangerDot"/> Offline / Exception</span></div></div> }
+function LiveMap({assets,selected,setSelected,trail,geofences=[]}) { return <div className="mapPanel"><div className="panelHead"><div><b>LIVE ASSET MAP</b><small>{assets.length} tracked assets · realtime feed</small></div><div className="mapTools"><span className="liveBadge"><i className="pulse"/> LIVE</span></div></div><LeafletMap assets={assets} selected={selected} onSelect={setSelected} trail={trail} geofences={geofences}/><div className="mapLegend"><span><i className="goodDot"/> Moving</span><span><i className="warnDot"/> Idle / Stopped</span><span><i className="dangerDot"/> Stale / Offline</span><span><i className="zoneDotLegend"/> Safe zone</span></div></div> }
 
 function AssetDrawer({asset,onClose,trail}){if(!asset)return null;const Icon=iconFor(asset.asset_type);return <aside className="assetDrawer"><div className="drawerHead"><div><span className="assetIcon"><Icon size={17}/></span><div><b>{asset.identifier||asset.name}</b><small>{asset.name||asset.asset_type}</small></div></div><button onClick={onClose}><X/></button></div><div className="drawerStatus"><Status>{asset.status}</Status><span>Updated {asset.last_updated?new Date(asset.last_updated).toLocaleString():'—'}</span></div><div className="metricGrid"><div><small>SPEED</small><b>{asset.speed??0} km/h</b></div><div><small>HEADING</small><b>{asset.heading??0}°</b></div><div><small>LATITUDE</small><b>{toCoordinate(asset.latitude,asset.longitude)?.[0]?.toFixed(5) ?? '—'}</b></div><div><small>LONGITUDE</small><b>{toCoordinate(asset.latitude,asset.longitude)?.[1]?.toFixed(5) ?? '—'}</b></div></div><div className="drawerSection"><b>TRIP CONTEXT</b><p>{asset.current_trip_id||'No active trip linked'}</p></div><div className="drawerSection"><b>RECENT TRAIL</b><p>{trail.length} location points loaded for the selected window.</p></div><button className="outline wide"><History size={15}/> Open movement history</button></aside>}
 
@@ -331,6 +370,7 @@ function CommandCenter({assets,alerts,trips,setSelected,selected,trail,refresh,g
         selected={selected}
         setSelected={setSelected}
         trail={trail}
+        geofences={geofences}
       />
 
       <div className="sideStack">

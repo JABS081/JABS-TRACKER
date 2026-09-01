@@ -49,16 +49,15 @@
   background:
     linear-gradient(
       90deg,
-      rgba(2,8,14,.48) 0%,
-      rgba(2,8,14,.18) 42%,
-      rgba(2,8,14,.03) 76%,
-      rgba(2,8,14,.12) 100%
+      rgba(2,8,14,.60) 0%,
+      rgba(2,8,14,.28) 24%,
+      rgba(2,8,14,.04) 50%,
+      rgba(2,8,14,0) 68%
     ),
     linear-gradient(
       0deg,
-      rgba(2,8,14,.28) 0%,
-      transparent 42%,
-      rgba(2,8,14,.06) 100%
+      rgba(2,8,14,.42) 0%,
+      rgba(2,8,14,0) 30%
     );
 }
 
@@ -703,6 +702,20 @@
    (cover legibility on mobile, micro-interactions, loader,
     unified Command Center safe-zone panel)
    ========================================================= */
+
+/* Mobile cover: keep the video clean but guarantee copy legibility
+   with a top+bottom scrim only (middle of the video stays crisp). */
+@media(max-width:800px){
+  .cinematicVideoGrade{
+    background:linear-gradient(
+      180deg,
+      rgba(2,8,14,.58) 0%,
+      rgba(2,8,14,.12) 38%,
+      rgba(2,8,14,.10) 62%,
+      rgba(2,8,14,.72) 100%
+    );
+  }
+}
 
 /* Refined micro-interactions — additive, no layout change */
 .stat,.panel,.mapPanel,.chartPanel,.tablePanel,.plan,.assetCard,.assetMapCard{

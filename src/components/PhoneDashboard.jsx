@@ -457,6 +457,7 @@ export default function PhoneDashboard({
   const [message,setMessage]=useState('');
   const [watchId,setWatchId]=useState(null);
   const [lastSample,setLastSample]=useState(null);
+  const sentCount=useRef(0);
 
   useEffect(()=>{
 
@@ -464,6 +465,7 @@ export default function PhoneDashboard({
     setTracking(false);
     setMessage('');
     setLastSample(null);
+    sentCount.current=0;
 
   },[phone?.id]);
 
@@ -533,6 +535,16 @@ export default function PhoneDashboard({
 
     }
 
+    if(!window.isSecureContext&&location.hostname!=='localhost'){
+
+      setMessage(
+        'Live GPS requires a secure (HTTPS) connection. Open JABS TRACKER over HTTPS on the phone, then start tracking again.'
+      );
+
+      return;
+
+    }
+
     setMessage(
       'Requesting secure location permission…'
     );
@@ -578,8 +590,10 @@ export default function PhoneDashboard({
 
         }
 
+        sentCount.current+=1;
+
         setMessage(
-          `Live location transmitted · ${new Date().toLocaleTimeString()}`
+          `Live location transmitted · ${sentCount.current} sent · ${new Date().toLocaleTimeString()}`
         );
 
       })
@@ -592,7 +606,12 @@ export default function PhoneDashboard({
     const id=navigator.geolocation.watchPosition(
       send,
       error=>{
-        setMessage(error.message);
+        const map={
+          1:'Location permission denied. Enable location access for this site in your browser settings, then start tracking again.',
+          2:'Position unavailable. Make sure device location / GPS is switched on and you have signal.',
+          3:'Location request timed out. Move to an area with a clearer GPS signal and retry.'
+        };
+        setMessage(map[error.code]||error.message||'Unable to obtain location.');
         setTracking(false);
       },
       {

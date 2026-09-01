@@ -32,13 +32,6 @@ const fmt=v=>{
   return n==null?'—':n.toLocaleString(undefined,{maximumFractionDigits:2});
 };
 
-const haversineM=(la1,lo1,la2,lo2)=>{
-  const R=6371000,r=Math.PI/180;
-  const dLa=(la2-la1)*r,dLo=(lo2-lo1)*r;
-  const a=Math.sin(dLa/2)**2+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)**2;
-  return 2*R*Math.asin(Math.min(1,Math.sqrt(a)));
-};
-
 const freshness=timestamp=>{
   if(!timestamp)return 'UNKNOWN';
 
@@ -438,8 +431,7 @@ export default function PhoneDashboard({
   assets=[],
   trail=[],
   selected,
-  setSelected,
-  geofences=[]
+  setSelected
 }){
 
   const phones=assets.filter(
@@ -479,27 +471,6 @@ export default function PhoneDashboard({
   const stale=
     status==='STALE'||
     status==='OFFLINE';
-
-  const zoneLat=num(phone?.latitude);
-  const zoneLng=num(phone?.longitude);
-
-  const activeZones=(geofences||[]).filter(
-    g=>g.active&&num(g.latitude)!=null&&num(g.longitude)!=null
-  );
-
-  const zoneStatus=activeZones.map(g=>{
-    const distance=
-      zoneLat!=null&&zoneLng!=null
-        ?haversineM(zoneLat,zoneLng,Number(g.latitude),Number(g.longitude))
-        :null;
-    return {
-      zone:g,
-      distance,
-      inside:distance!=null&&distance<=Number(g.radius_m||0)
-    };
-  }).sort((a,b)=>(a.distance??Infinity)-(b.distance??Infinity));
-
-  const insideZones=zoneStatus.filter(z=>z.inside);
 
   const startTracking=()=>{
 
@@ -1093,67 +1064,6 @@ export default function PhoneDashboard({
               </div>
 
             </div>
-
-          </section>
-
-          <section className="phoneCard phoneSafeZone">
-
-            <div className="phoneSectionHead">
-              <div>
-                <b>SAFE ZONE STATUS</b>
-                <small>Live geofence relationship</small>
-              </div>
-              <MapPin size={18}/>
-            </div>
-
-            {zoneLat==null||zoneLng==null?(
-              <div className="safeZoneEmpty">
-                <ShieldCheck size={20}/>
-                <span>
-                  Location required to evaluate safe zones.
-                  Waiting for authorized GPS position.
-                </span>
-              </div>
-            ):!activeZones.length?(
-              <div className="safeZoneEmpty">
-                <ShieldCheck size={20}/>
-                <span>
-                  No active organization safe zones are configured.
-                </span>
-              </div>
-            ):(
-              <>
-                <div className={`safeZoneBanner ${insideZones.length?'inside':'outside'}`}>
-                  <i/>
-                  {insideZones.length
-                    ?`INSIDE SAFE ZONE${insideZones.length>1?'S':''}`
-                    :'OUTSIDE ALL SAFE ZONES'}
-                </div>
-
-                <div className="safeZoneRows">
-                  {zoneStatus.slice(0,5).map(z=>(
-                    <div key={z.zone.id}>
-                      <span className={`zoneDot ${z.inside?'in':'out'}`}/>
-                      <div>
-                        <b>{z.zone.name||'Unnamed zone'}</b>
-                        <small>
-                          {(z.zone.type||'CUSTOM').replaceAll('_',' ')}
-                          {' · '}
-                          {Number(z.zone.radius_m||0).toLocaleString()} m
-                        </small>
-                      </div>
-                      <strong>
-                        {z.inside
-                          ?'INSIDE'
-                          :z.distance!=null
-                            ?`${fmt(z.distance/1000)} km`
-                            :'—'}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
 
           </section>
 

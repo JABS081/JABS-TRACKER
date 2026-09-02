@@ -3,15 +3,9 @@ import react from '@vitejs/plugin-react';
 
 // Preserves existing behavior: React plugin (Fast Refresh + JSX) and the
 // dist output directory expected by vercel.json. No design/behavior changes.
-// server.allowedHosts: true is required so Vite's dev server accepts
-// requests proxied through Emergent's preview domain (a Host header other
-// than localhost) instead of rejecting them with "Blocked request".
 export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'dist',
-  },
-  server: {
-    allowedHosts: true,
   },
 });

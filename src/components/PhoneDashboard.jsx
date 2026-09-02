@@ -462,6 +462,17 @@ export default function PhoneDashboard({
   const [sent,setSent]=useState(0);
   const [txError,setTxError]=useState('');
   const lastRefresh=useRef(0);
+  const [tab,setTab]=useState('LIVE');
+  const [sessionStart,setSessionStart]=useState(null);
+  const [nowTick,setNowTick]=useState(Date.now());
+  const [events,setEvents]=useState([]);
+  const logEvent=label=>setEvents(e=>[{t:Date.now(),label},...e].slice(0,24));
+
+  useEffect(()=>{
+    if(!tracking)return;
+    const id=setInterval(()=>setNowTick(Date.now()),1000);
+    return ()=>clearInterval(id);
+  },[tracking]);
 
   useEffect(()=>{
 
@@ -472,6 +483,8 @@ export default function PhoneDashboard({
     sentCount.current=0;
     setSent(0);
     setTxError('');
+    setSessionStart(null);
+    setEvents([]);
 
   },[phone?.id]);
 
@@ -604,6 +617,7 @@ export default function PhoneDashboard({
         sentCount.current+=1;
         setSent(sentCount.current);
         setTxError('');
+        logEvent('Location transmitted');
 
         setMessage(
           `Live location transmitted · ${sentCount.current} sent · ${new Date().toLocaleTimeString()}`
@@ -619,6 +633,7 @@ export default function PhoneDashboard({
       .catch(error=>{
         setTxError(error.message);
         setMessage(error.message);
+        logEvent('Telemetry rejected');
       });
 
     };
@@ -643,6 +658,8 @@ export default function PhoneDashboard({
 
     setWatchId(id);
     setTracking(true);
+    setSessionStart(Date.now());
+    logEvent('GPS tracking started');
     setMessage(
       'LIVE SESSION ACTIVE — location permission granted.'
     );
@@ -661,6 +678,8 @@ export default function PhoneDashboard({
 
     setWatchId(null);
     setTracking(false);
+    setSessionStart(null);
+    logEvent('Tracking stopped');
 
     setMessage(
       'Live phone tracking session stopped.'
@@ -684,815 +703,271 @@ export default function PhoneDashboard({
 
   },[watchId]);
 
+
+  const connected=status==='LIVE'||status==='RECENT';
+  const lat=num(phone?.latitude);
+  const lng=num(phone?.longitude);
+
+  const trailPoints=(trail||[])
+    .filter(p=>p&&p.latitude!=null&&p.longitude!=null)
+    .map(p=>({
+      lat:Number(p.latitude),
+      lng:Number(p.longitude),
+      t:new Date(p.recorded_at||p.created_at||p.timestamp||p.last_updated||0).getTime(),
+      speed:p.speed
+    }))
+    .filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng))
+    .sort((a,b)=>a.t-b.t);
+
+  const dayStart=new Date();dayStart.setHours(0,0,0,0);
+  const todayPoints=trailPoints.filter(p=>p.t>=dayStart.getTime());
+  const trailForMap=todayPoints.length?todayPoints:trailPoints;
+
+  const trailDistanceKm=(()=>{
+    let d=0;
+    for(let i=1;i<trailForMap.length;i++){
+      d+=haversineM(trailForMap[i-1].lat,trailForMap[i-1].lng,trailForMap[i].lat,trailForMap[i].lng);
+    }
+    return d/1000;
+  })();
+
+  const fmtDur=ms=>{
+    if(!ms||ms<0)return '—';
+    const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+    return h?`${h}h ${m}m`:m?`${m}m ${sec}s`:`${sec}s`;
+  };
+
+  const trailDurationMs=trailForMap.length>1?trailForMap[trailForMap.length-1].t-trailForMap[0].t:0;
+  const sessionDuration=tracking&&sessionStart?fmtDur(nowTick-sessionStart):'—';
+  const currentSpeed=lastSample?num(lastSample.speed):num(phone?.speed);
+  const currentAcc=lastSample?num(lastSample.accuracy):num(phone?.accuracy);
+  const lastTxTime=lastSample?new Date(lastSample.timestamp):(phone?.last_updated?new Date(phone.last_updated):null);
+
   if(!phone){
-
-    return(
-      <div className="phoneDashboard">
-
-        <div className="phoneEmpty">
-
-          <Smartphone size={48}/>
-
-          <span>
-            CONNECTED PEOPLE / DEVICE VISIBILITY
-          </span>
-
-          <h1>
-            Phone Command
-          </h1>
-
-          <p>
-            No authorized phone is currently
-            available to this organization.
-          </p>
-
+    return (
+      <div className="pc pcEmptyWrap">
+        <header className="pcHeader">
+          <div className="pcBrand">
+            <span className="pcLogo"><Radio size={16}/></span>
+            <div><b>JABS TRACKER</b><small>PHONE COMMAND</small></div>
+          </div>
+        </header>
+        <div className="pcEmpty">
+          <Smartphone size={44}/>
+          <h2>No authorized phone</h2>
+          <p>Phones connected to this organization will appear here.</p>
+          <span className="pcTagline">TRACE IT · TRACK IT · TRUST IT</span>
         </div>
-
       </div>
     );
-
   }
 
-  return(
+  return (
+    <div className="pc" data-tab={tab}>
 
-    <div className="phoneDashboard">
-
-      <div className="phoneHero">
-
-        <div>
-
-          <span>
-            ORGANIZATION PEOPLE / PHONE OPERATIONS
-          </span>
-
-          <h1>
-            Phone Command
-          </h1>
-
-          <p>
-            Organization-level visibility for
-            authorized phones, workforce movement,
-            safety status, device health and
-            location continuity.
-          </p>
-
+      <header className="pcHeader">
+        <div className="pcBrand">
+          <span className="pcLogo"><Radio size={16}/></span>
+          <div><b>JABS TRACKER</b><small>PHONE COMMAND</small></div>
         </div>
-
-        <div className="phoneHeroRight">
-
+        <div className="pcHeaderRight">
+          <span className={`pcConn ${connected?'on':'off'}`}><i/>{connected?'CONNECTED':'OFFLINE'}</span>
           <PhoneStatus status={status}/>
+        </div>
+      </header>
 
+      <div className="pcSub">
+        <div className="pcSubLeft">
           <select
+            className="pcPhoneSelect"
             value={phone.id||''}
             onChange={e=>{
-              const next=phones.find(
-                x=>x.id===e.target.value
-              );
-              setSelected?.(next||null);
+              const nx=phones.find(x=>x.id===e.target.value);
+              setSelected?.(nx||null);
             }}
           >
-
-            <option value="">
-              Select phone
-            </option>
-
-            {phones.map(p=>(
-              <option
-                key={p.id}
-                value={p.id}
-              >
-                {p.identifier||p.name}
-              </option>
-            ))}
-
+            {phones.map(p=><option key={p.id} value={p.id}>{p.identifier||p.name}</option>)}
           </select>
-
+          <small>Last sync {lastTxTime?lastTxTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'—'}</small>
         </div>
-
+        <span className="pcTagline">TRACE · TRACK · TRUST</span>
       </div>
 
-      <div className="phoneOrgStrip">
-
-        <div>
-          <Users size={17}/>
-          <span>
-            AUTHORIZED PHONES
-            <b>{phones.length}</b>
-          </span>
-        </div>
-
-        <div>
-          <Navigation size={17}/>
-          <span>
-            MOVING
-            <b>
-              {
-                phones.filter(
-                  p=>Number(p.speed||0)>0
-                ).length
-              }
-            </b>
-          </span>
-        </div>
-
-        <div>
-          <Battery size={17}/>
-          <span>
-            LOW BATTERY
-            <b>
-              {
-                phones.filter(
-                  p=>p.battery_level!=null &&
-                  Number(p.battery_level)<=20
-                ).length
-              }
-            </b>
-          </span>
-        </div>
-
-        <div>
-          <Signal size={17}/>
-          <span>
-            NEED ATTENTION
-            <b>
-              {
-                phones.filter(
-                  p=>['STALE','OFFLINE']
-                  .includes(
-                    freshness(p.last_updated)
-                  )
-                ).length
-              }
-            </b>
-          </span>
-        </div>
-
-      </div>
-
-      <div className="phoneMetrics">
-
-        <Metric
-          icon={MapPin}
-          label="CURRENT LOCATION"
-          value={`${fmt(phone.latitude)}, ${fmt(phone.longitude)}`}
-          meta="Latest authorized position"
-        />
-
-        <Metric
-          icon={Battery}
-          label="BATTERY"
-          value={
-            phone.battery_level==null
-              ?'—'
-              :`${fmt(phone.battery_level)}%`
-          }
-          meta={
-            lowBattery
-              ?'LOW — attention required'
-              :'Device power status'
-          }
-        />
-
-        <Metric
-          icon={Signal}
-          label="NETWORK"
-          value={
-            phone.network_type||'UNKNOWN'
-          }
-          meta="Current network type"
-        />
-
-        <Metric
-          icon={Clock3}
-          label="LAST SEEN"
-          value={
-            phone.last_updated
-              ?new Date(
-                phone.last_updated
-              ).toLocaleTimeString(
-                [],
-                {
-                  hour:'2-digit',
-                  minute:'2-digit'
-                }
-              )
-              :'—'
-          }
-          meta={status}
-        />
-
-      </div>
-
-      <div className="phoneMainGrid">
-
-        <section className="phoneMapCard">
-
-          <div className="phoneSectionHead">
-
-            <div>
-
-              <b>
-                LIVE PEOPLE / DEVICE MAP
-              </b>
-
-              <small>
-                {
-                  phone.identifier||
-                  phone.name||
-                  'AUTHORIZED PHONE'
-                }
-                {' · '}
-                live location and movement trail
-              </small>
-
-            </div>
-
-            <span className="phoneLiveBadge">
-              <i/>
-              {tracking?'TRACKING':'MONITORING'}
-            </span>
-
-          </div>
-
-          <div className="phoneMapWrap">
-
-            <PhoneMap
-              asset={phone}
-              trail={trail}
-            />
-
-            <div className="phoneMapOverlay">
-
-              <span>
-                <LocateFixed size={13}/>
-                GPS ACCURACY
-              </span>
-
-              <b>
-                {
-                  phone.accuracy
-                    ?`±${fmt(phone.accuracy)} m`
-                    :'UNKNOWN'
-                }
-              </b>
-
-            </div>
-
-            <div className="phoneMovementBadge">
-
-              <span>
-                <Navigation size={13}/>
-                MOVEMENT
-              </span>
-
-              <b>
-                {moving?'MOVING':'STATIONARY'}
-              </b>
-
-            </div>
-
-          </div>
-
-          <div className="phoneMapFooter">
-
-            <span>
-              <MapPin size={13}/>
-              {fmt(phone.latitude)},
-              {' '}
-              {fmt(phone.longitude)}
-            </span>
-
-            <span>
-              <Clock3 size={13}/>
-              {phone.last_updated
-                ?new Date(
-                  phone.last_updated
-                ).toLocaleString()
-                :'No timestamp'}
-            </span>
-
-          </div>
-
-        </section>
-
-        <aside className="phoneSideColumn">
-
-          <section className="phoneCard">
-
-            <div className="phoneSectionHead">
-
-              <div>
-                <b>
-                  DEVICE IDENTITY
-                </b>
-                <small>
-                  Organization registered device
-                </small>
-              </div>
-
-              <Smartphone size={18}/>
-
-            </div>
-
-            <div className="phoneIdentity">
-
-              <div className="phoneAvatar">
-                <Phone size={22}/>
-              </div>
-
-              <div>
-
-                <strong>
-                  {phone.identifier||
-                   phone.name||
-                   'PHONE'}
-                </strong>
-
-                <span>
-                  {phone.name||
-                   'Connected organization device'}
-                </span>
-
-              </div>
-
-            </div>
-
-            <div className="phoneDataRows">
-
-              <div>
-                <span>DEVICE</span>
-                <b>
-                  {phone.device_id||'NOT LINKED'}
-                </b>
-              </div>
-
-              <div>
-                <span>STATUS</span>
-                <b>
-                  {phone.status||'UNKNOWN'}
-                </b>
-              </div>
-
-              <div>
-                <span>GPS</span>
-                <b>
-                  {phone.accuracy
-                    ?'LOCKED'
-                    :'UNKNOWN'}
-                </b>
-              </div>
-
-            </div>
-
-          </section>
-
-          <section className="phoneCard">
-
-            <div className="phoneSectionHead">
-
-              <div>
-                <b>
-                  DEVICE HEALTH
-                </b>
-                <small>
-                  Continuity indicators
-                </small>
-              </div>
-
-              <Activity size={18}/>
-
-            </div>
-
-            <div className="phoneHealthRows">
-
-              <div>
-                <span>BATTERY</span>
-                <b>
-                  {
-                    phone.battery_level==null
-                      ?'UNKNOWN'
-                      :lowBattery
-                        ?'LOW'
-                        :'HEALTHY'
-                  }
-                </b>
-                <i>
-                  <em
-                    style={{
-                      width:
-                        phone.battery_level==null
-                          ?'20%'
-                          :`${Math.min(
-                            100,
-                            Number(
-                              phone.battery_level
-                            )
-                          )}%`
-                    }}
-                  />
-                </i>
-              </div>
-
-              <div>
-                <span>NETWORK</span>
-                <b>
-                  {phone.network_type||'UNKNOWN'}
-                </b>
-                <i>
-                  <em
-                    style={{
-                      width:
-                        phone.network_type
-                          ?'82%'
-                          :'25%'
-                    }}
-                  />
-                </i>
-              </div>
-
-              <div>
-                <span>LOCATION</span>
-                <b>
-                  {status}
-                </b>
-                <i>
-                  <em
-                    style={{
-                      width:
-                        status==='LIVE'
-                          ?'96%'
-                          :status==='RECENT'
-                            ?'75%'
-                            :status==='STALE'
-                              ?'45%'
-                              :'18%'
-                    }}
-                  />
-                </i>
-              </div>
-
-            </div>
-
-          </section>
-
-          <section className="phoneCard phoneSafeZone">
-
-            <div className="phoneSectionHead">
-              <div>
-                <b>SAFE ZONE STATUS</b>
-                <small>Live geofence relationship</small>
-              </div>
-              <MapPin size={18}/>
-            </div>
-
-            {zoneLat==null||zoneLng==null?(
-              <div className="safeZoneEmpty">
-                <ShieldCheck size={20}/>
-                <span>
-                  Location required to evaluate safe zones.
-                  Waiting for authorized GPS position.
+      <main className="pcBody">
+
+        {tab==='LIVE'&&(
+          <>
+            <section className="pcCard pcMapCard">
+              <PhoneMap asset={phone} trail={trail}/>
+            </section>
+
+            <section className="pcCard pcLive">
+              <div className="pcCardHead">
+                <b>LIVE TRACKING</b>
+                <span className={`pcStatePill ${tracking?'live':status.toLowerCase()}`}>
+                  <i/>{tracking?'LIVE SESSION':status}
                 </span>
               </div>
-            ):!activeZones.length?(
-              <div className="safeZoneEmpty">
-                <ShieldCheck size={20}/>
-                <span>
-                  No active organization safe zones are configured.
-                </span>
+              <div className="pcLiveGrid">
+                <div><span>STATUS</span><b>{tracking?'TRACKING':'STOPPED'}</b></div>
+                <div><span>DURATION</span><b>{sessionDuration}</b></div>
+                <div><span>SPEED</span><b>{currentSpeed==null?'—':`${fmt(currentSpeed)} km/h`}</b></div>
+                <div><span>MOVEMENT</span><b>{currentSpeed==null?'—':currentSpeed>0?'MOVING':'STATIONARY'}</b></div>
+                <div><span>ACCURACY</span><b>{currentAcc==null?'—':`±${fmt(currentAcc)} m`}</b></div>
+                <div><span>BATTERY</span><b>{phone.battery_level==null?'—':`${fmt(phone.battery_level)}%`}</b></div>
+                <div><span>TRANSMISSIONS</span><b>{sent}</b></div>
+                <div><span>GPS FRESHNESS</span><b>{status}</b></div>
+                <div className="pcLiveWide"><span>LAST LOCATION</span><b>{lat==null||lng==null?'No fix received yet':`${fmt(lat)}, ${fmt(lng)}`}</b></div>
               </div>
-            ):(
-              <>
-                <div className={`safeZoneBanner ${insideZones.length?'inside':'outside'}`}>
-                  <i/>
-                  {insideZones.length
-                    ?`INSIDE SAFE ZONE${insideZones.length>1?'S':''}`
-                    :'OUTSIDE ALL SAFE ZONES'}
+            </section>
+
+            <section className="pcCard pcControls">
+              <label className="pcField">
+                <span>REGISTERED DEVICE ID</span>
+                <input value={device} onChange={e=>setDevice(e.target.value)} placeholder="Device ID" autoComplete="off"/>
+              </label>
+              <label className="pcField">
+                <span>DEVICE CREDENTIAL</span>
+                <input type="password" value={credential} onChange={e=>setCredential(e.target.value)} placeholder="Private device credential" autoComplete="off"/>
+              </label>
+              <button
+                className={`pcTrackBtn ${tracking?'stop':'start'}`}
+                onClick={tracking?stopTracking:startTracking}
+              >
+                {tracking?<Pause size={18}/>:<Play size={18}/>}
+                {tracking?' STOP TRACKING':' START LIVE TRACKING'}
+              </button>
+              {message&&(
+                <div className={`pcFeedback ${txError?'err':''}`}>
+                  <Activity size={14}/> {message}
                 </div>
+              )}
+            </section>
 
-                <div className="safeZoneRows">
-                  {zoneStatus.slice(0,5).map(z=>(
+            <section className="pcCard pcGeo">
+              <div className="pcCardHead"><b>GEOFENCE STATUS</b><MapPin size={16}/></div>
+              {lat==null||lng==null?(
+                <div className="pcGeoState unknown"><i/>UNKNOWN — awaiting GPS position</div>
+              ):!activeZones.length?(
+                <div className="pcGeoState unknown"><i/>No safe zones configured</div>
+              ):(
+                <div className={`pcGeoState ${insideZones.length?'inside':'outside'}`}>
+                  <i/>{insideZones.length?`INSIDE ${insideZones[0].zone.name||'SAFE ZONE'}`:'OUTSIDE ALL SAFE ZONES'}
+                </div>
+              )}
+              {activeZones.length>0&&lat!=null&&lng!=null&&(
+                <div className="pcGeoList">
+                  {zoneStatus.slice(0,4).map(z=>(
                     <div key={z.zone.id}>
-                      <span className={`zoneDot ${z.inside?'in':'out'}`}/>
-                      <div>
-                        <b>{z.zone.name||'Unnamed zone'}</b>
-                        <small>
-                          {(z.zone.type||'CUSTOM').replaceAll('_',' ')}
-                          {' · '}
-                          {Number(z.zone.radius_m||0).toLocaleString()} m
-                        </small>
-                      </div>
-                      <strong>
-                        {z.inside
-                          ?'INSIDE'
-                          :z.distance!=null
-                            ?`${fmt(z.distance/1000)} km`
-                            :'—'}
-                      </strong>
+                      <span className={`pcDot ${z.inside?'in':'out'}`}/>
+                      <b>{z.zone.name||'Zone'}</b>
+                      <small>{z.inside?'INSIDE':z.distance!=null?`${fmt(z.distance/1000)} km`:'—'}</small>
                     </div>
                   ))}
                 </div>
-              </>
-            )}
+              )}
+            </section>
+          </>
+        )}
 
-          </section>
+        {tab==='HISTORY'&&(
+          <>
+            <section className="pcCard pcHistSummary">
+              <div className="pcCardHead"><b>TODAY'S MOVEMENT</b><History size={16}/></div>
+              {trailForMap.length<2?(
+                <div className="pcEmptyState"><History size={26}/><span>No movement history available yet</span></div>
+              ):(
+                <div className="pcHistStats">
+                  <div><span>POINTS</span><b>{trailForMap.length}</b></div>
+                  <div><span>DISTANCE</span><b>{fmt(trailDistanceKm)} km</b></div>
+                  <div><span>DURATION</span><b>{fmtDur(trailDurationMs)}</b></div>
+                  <div><span>START</span><b>{new Date(trailForMap[0].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</b></div>
+                  <div><span>LATEST</span><b>{new Date(trailForMap[trailForMap.length-1].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</b></div>
+                </div>
+              )}
+            </section>
 
-          <section className="phoneCard phonePrivacy">
+            <section className="pcCard pcMapCard">
+              <PhoneMap asset={phone} trail={trail}/>
+            </section>
 
-            <div className="phoneSectionHead">
+            <section className="pcCard">
+              <div className="pcCardHead"><b>ACTIVITY TIMELINE</b><Activity size={16}/></div>
+              {events.length===0&&trailForMap.length<2?(
+                <div className="pcEmptyState"><Activity size={24}/><span>No activity yet. Start a live session to record events.</span></div>
+              ):(
+                <div className="pcTimeline">
+                  {events.map((e,i)=>(
+                    <div key={`ev-${i}`}><span className="pcTlDot"/><div><b>{e.label}</b><small>{new Date(e.t).toLocaleTimeString()}</small></div></div>
+                  ))}
+                  {events.length===0&&trailForMap.slice(-8).reverse().map((p,i)=>(
+                    <div key={`tp-${i}`}><span className="pcTlDot"/><div><b>Location recorded · {fmt(p.lat)}, {fmt(p.lng)}</b><small>{new Date(p.t).toLocaleString()}</small></div></div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
 
-              <div>
-                <b>
-                  ORGANIZATION PRIVACY
-                </b>
-                <small>
-                  Authorized tracking only
-                </small>
+        {tab==='DEVICE'&&(
+          <>
+            <section className="pcCard">
+              <div className="pcCardHead"><b>DEVICE IDENTITY</b><Smartphone size={16}/></div>
+              <div className="pcDeviceHead">
+                <span className="pcDeviceAvatar"><Phone size={20}/></span>
+                <div><strong>{phone.identifier||phone.name||'PHONE'}</strong><span>{phone.name||'Organization device'}</span></div>
               </div>
-
-              <ShieldCheck size={18}/>
-
-            </div>
-
-            <p>
-              This device participates in tracking
-              only through the registered asset
-              pipeline. Location permission and
-              device credentials are required.
-            </p>
-
-            <div className="privacyState">
-              <ShieldCheck size={15}/>
-              AUTHORIZED DEVICE PIPELINE
-            </div>
-
-          </section>
-
-        </aside>
-
-      </div>
-
-      <div className="phoneLowerGrid">
-
-        <section className="phoneCard">
-
-          <div className="phoneSectionHead">
-
-            <div>
-              <b>
-                LIVE TRACKING SESSION
-              </b>
-
-              <small>
-                Continuous authorized browser
-                telemetry
-              </small>
-            </div>
-
-            <Radio size={18}/>
-
-          </div>
-
-          {tracking&&(
-            <div className="phoneLiveSession">
-              <div className="phoneLiveSessionTop">
-                <span className="phoneLiveDot"/>
-                <b>LIVE SESSION ACTIVE</b>
-                <span className="phoneLiveTx">{sent} sent</span>
+              <div className="pcKV">
+                <div><span>DEVICE ID</span><b>{phone.device_id||'NOT LINKED'}</b></div>
+                <div><span>PAIRING</span><b>{phone.device_id?'PAIRED':'UNPAIRED'}</b></div>
+                <div><span>CREDENTIAL</span><b>{credential?'ENTERED':'REQUIRED'}</b></div>
+                <div><span>STATUS</span><b>{phone.status||'UNKNOWN'}</b></div>
+                <div><span>LAST SEEN</span><b>{phone.last_updated?new Date(phone.last_updated).toLocaleString():'—'}</b></div>
+                <div><span>LAST LOCATION</span><b>{lat==null||lng==null?'—':`${fmt(lat)}, ${fmt(lng)}`}</b></div>
               </div>
-              <div className="phoneLiveGrid">
-                <div><span>LATITUDE</span><b>{lastSample?fmt(lastSample.latitude):'…'}</b></div>
-                <div><span>LONGITUDE</span><b>{lastSample?fmt(lastSample.longitude):'…'}</b></div>
-                <div><span>ACCURACY</span><b>{lastSample?.accuracy!=null?`±${fmt(lastSample.accuracy)} m`:'…'}</b></div>
-                <div><span>MOVEMENT</span><b>{lastSample?(Number(lastSample.speed)>0?'MOVING':'STATIONARY'):'…'}</b></div>
-                <div><span>LAST TX</span><b>{lastSample?new Date(lastSample.timestamp).toLocaleTimeString():'…'}</b></div>
-                <div><span>TELEMETRY</span><b className={txError?'txErr':'txOk'}>{txError?'REJECTED':sent>0?'FLOWING':'ACQUIRING GPS'}</b></div>
+            </section>
+
+            <section className="pcCard">
+              <div className="pcCardHead"><b>DEVICE HEALTH</b><Activity size={16}/></div>
+              <div className="pcHealth">
+                <div>
+                  <span>BATTERY</span>
+                  <i><em style={{width:phone.battery_level==null?'18%':`${Math.min(100,Number(phone.battery_level))}%`}}/></i>
+                  <b>{phone.battery_level==null?'UNKNOWN':lowBattery?'LOW':'HEALTHY'}</b>
+                </div>
+                <div>
+                  <span>NETWORK</span>
+                  <i><em style={{width:phone.network_type?'82%':'22%'}}/></i>
+                  <b>{phone.network_type||'UNKNOWN'}</b>
+                </div>
+                <div>
+                  <span>GPS</span>
+                  <i><em style={{width:status==='LIVE'?'96%':status==='RECENT'?'72%':status==='STALE'?'45%':'18%'}}/></i>
+                  <b>{status}</b>
+                </div>
               </div>
-            </div>
-          )}
+            </section>
 
-          <div className="phoneControls">
+            <section className="pcCard pcPrivacy">
+              <div className="pcCardHead"><b>PRIVACY</b><ShieldCheck size={16}/></div>
+              <p>This device transmits location only through the authorized JABS device pipeline. Credentials remain private and are never stored in the interface.</p>
+              <div className="pcPrivacyState"><ShieldCheck size={14}/> AUTHORIZED DEVICE PIPELINE</div>
+            </section>
+          </>
+        )}
 
-            <label>
-              REGISTERED DEVICE ID
+      </main>
 
-              <input
-                value={device}
-                onChange={e=>
-                  setDevice(e.target.value)
-                }
-                placeholder="Device ID"
-              />
-
-            </label>
-
-            <label>
-              DEVICE CREDENTIAL
-
-              <input
-                type="password"
-                value={credential}
-                onChange={e=>
-                  setCredential(e.target.value)
-                }
-                placeholder="Private device credential"
-              />
-
-            </label>
-
-            <button
-              className={
-                tracking
-                  ?'phoneStopButton'
-                  :'phoneStartButton'
-              }
-              onClick={
-                tracking
-                  ?stopTracking
-                  :startTracking
-              }
-            >
-
-              {tracking
-                ?<Pause size={16}/>
-                :<Play size={16}/>
-              }
-
-              {tracking
-                ?' STOP LIVE SESSION'
-                :' START LIVE SESSION'
-              }
-
-            </button>
-
-          </div>
-
-          {message&&(
-            <div className="phoneMessage">
-              <Activity size={15}/>
-              {message}
-            </div>
-          )}
-
-          {lastSample&&(
-
-            <div className="phoneLastSample">
-
-              <span>
-                LAST TRANSMITTED
-              </span>
-
-              <b>
-                {fmt(lastSample.latitude)},
-                {' '}
-                {fmt(lastSample.longitude)}
-              </b>
-
-              <small>
-                ±{fmt(lastSample.accuracy)} m ·
-                {' '}
-                {new Date(
-                  lastSample.timestamp
-                ).toLocaleTimeString()}
-              </small>
-
-            </div>
-
-          )}
-
-        </section>
-
-        <section className="phoneCard">
-
-          <div className="phoneSectionHead">
-
-            <div>
-              <b>
-                MOVEMENT HISTORY
-              </b>
-
-              <small>
-                Recent location points received
-              </small>
-            </div>
-
-            <History size={18}/>
-
-          </div>
-
-          {!trail.length?(
-            <div className="phoneHistoryEmpty">
-              <History size={24}/>
-              <span>
-                No movement history is available
-                for this phone yet.
-              </span>
-            </div>
-          ):(
-            <div className="phoneHistoryList">
-
-              {trail
-                .slice(-8)
-                .reverse()
-                .map((point,index)=>{
-
-                  const timestamp=
-                    point.recorded_at||
-                    point.created_at||
-                    point.timestamp||
-                    point.last_updated;
-
-                  return(
-                    <div
-                      key={
-                        point.id||
-                        `${timestamp}-${index}`
-                      }
-                    >
-
-                      <span className="historyDot"/>
-
-                      <div>
-
-                        <b>
-                          {fmt(point.latitude)},
-                          {' '}
-                          {fmt(point.longitude)}
-                        </b>
-
-                        <small>
-                          {timestamp
-                            ?new Date(
-                              timestamp
-                            ).toLocaleString()
-                            :'Unknown time'}
-                        </small>
-
-                      </div>
-
-                      <strong>
-                        {
-                          point.speed!=null
-                            ?`${fmt(point.speed)} km/h`
-                            :'—'
-                        }
-                      </strong>
-
-                    </div>
-                  );
-
-                })}
-
-            </div>
-          )}
-
-        </section>
-
-      </div>
-
-      <section className="phoneCommandFooter">
-
-        <div>
-
-          <span>
-            ORGANIZATION CONTROL
-          </span>
-
-          <b>
-            {phone.identifier||
-             phone.name||
-             'Phone'} command workspace
-          </b>
-
-        </div>
-
-        <div className="phoneFooterActions">
-
-          <button className="phoneOutline">
-            <LocateFixed size={15}/>
-            Locate Device
+      <nav className="pcNav">
+        {[['LIVE',Radio],['HISTORY',History],['DEVICE',Smartphone]].map(([k,Icon])=>(
+          <button key={k} className={tab===k?'active':''} onClick={()=>setTab(k)}>
+            <Icon size={18}/>
+            <span>{k}</span>
           </button>
-
-          <button className="phoneOutline">
-            <History size={15}/>
-            View History
-          </button>
-
-          <button className="phoneOutline">
-            <Bell size={15}/>
-            Safety Alerts
-          </button>
-
-          <button className="phonePrimary">
-            <Route size={15}/>
-            View Movement
-          </button>
-
-        </div>
-
-      </section>
+        ))}
+      </nav>
 
     </div>
-
   );
-
 }
+

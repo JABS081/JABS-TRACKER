@@ -1,0 +1,9 @@
+{
+  "name": "emergent-preview-frontend-shim",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Platform shim: the real app lives at /app (Vite root), not /app/frontend. This package only exists so the default supervisor config's `directory=/app/frontend` + `yarn start` resolves to the real dev server.",
+  "scripts": {
+    "start": "cd /app && yarn dev --host 0.0.0.0 --port 3000"
+  }
+}
